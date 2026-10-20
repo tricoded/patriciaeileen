@@ -1,0 +1,1810 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Patricia Eileen: ECE student at Shanghai Jiao Tong University, backend developer and leader. A scroll-through 3D tour, in English and Chinese.">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Patricia Eileen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script>
+/* fonts load in the background so a slow or blocked font host never blocks the page */
+(function(){var l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..800;1,6..96,400..700&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Caveat:wght@500;600&display=swap';document.head.appendChild(l)})();
+</script>
+<style>
+/* Layout: a fixed WebGL museum behind a tall scroll track. Scroll drives one camera path:
+   ticket counter → facade → East Gallery corridor → Leadership Hall → Tech Wing → exit.
+   HTML overlays (placards, specimen cards, wing titles) appear at camera stops.
+   Single deliberate look: each room has its own fixed lighting, so colours are explicit. */
+:root{
+  --velvet:#1D0F26; --velvet-2:#2A1636; --velvet-3:#3A1F48;
+  --plum:#5B2A6E; --plum-l:#C79BD8;
+  --gold:#C39445; --gold-l:#E6C27F;
+  --wall:#E8E3EE; --wall-2:#D8D0E2; --ink:#24152E; --ink-soft:#5E4E6B; --paper:#F6F3F9;
+  --bp:#0C1F31; --bp-2:#123049; --cyan:#7CD3E8; --bp-ink:#DCEBF6; --bp-soft:#8FB0C8;
+  --display:"Bodoni Moda","Didot","Bodoni 72",Georgia,"Noto Serif SC","Songti SC","STSong",serif;
+  --body:"Manrope",system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --cjk:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html.locked,html.locked body{overflow:hidden}
+body{background:var(--velvet);color:var(--wall);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3{margin:0;text-wrap:balance}
+p{margin:0}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold-l);outline-offset:3px;border-radius:3px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+#track{height:2515vh}
+
+/* ---------- HUD ---------- */
+.progress{position:fixed;z-index:30;top:0;left:0;height:2px;width:100%;background:var(--gold-l);transform-origin:0 50%;transform:scaleX(0)}
+.hud-l{position:fixed;z-index:30;top:calc(env(safe-area-inset-top,0px) + 14px);left:max(16px,env(safe-area-inset-left,0px));display:flex;gap:10px;align-items:center}
+.brand{font-family:var(--display);font-style:italic;font-weight:600;font-size:22px;color:var(--gold-l);text-decoration:none;padding:4px 6px}
+.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(29,15,38,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(230,194,127,.32);border-radius:999px;padding:7px 13px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--wall);cursor:pointer}
+.pill:hover{border-color:var(--gold-l)}
+.pill .bars{display:inline-flex;gap:2px;align-items:flex-end;height:11px}
+.pill .bars i{width:2px;background:var(--gold-l);height:4px;transition:height .3s}
+.pill.on .bars i{animation:eq 1s ease-in-out infinite}
+.pill.on .bars i:nth-child(2){animation-delay:.2s}.pill.on .bars i:nth-child(3){animation-delay:.4s}
+@keyframes eq{0%,100%{height:3px}50%{height:11px}}
+.hud-r{position:fixed;z-index:30;top:calc(env(safe-area-inset-top,0px) + 14px);right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.wayfinder{cursor:default}
+.wayfinder .dots{display:flex;gap:6px}
+.wayfinder .dots button{width:9px;height:9px;padding:0;border-radius:50%;border:1px solid var(--gold-l);background:transparent;cursor:pointer}
+.wayfinder .dots button.on{background:var(--gold-l)}
+.ach-list{position:absolute;top:calc(100% + 8px);right:0;width:260px;background:rgba(29,15,38,.94);border:1px solid rgba(230,194,127,.32);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ach-list div{display:flex;gap:10px;align-items:flex-start;opacity:.45}
+.ach-list div.got{opacity:1}
+.ach-list b{display:block;font-size:13.5px;font-weight:600;color:var(--wall)}
+.ach-list span{font-size:12px;color:var(--wall-2)}
+.ach-list .medal{flex:0 0 22px;height:22px;border-radius:50%;border:1px solid var(--gold-l);display:grid;place-items:center;font-size:11px;color:var(--gold-l)}
+.ach-list div.got .medal{background:var(--gold-l);color:var(--velvet)}
+.ach-wrap{position:relative}
+
+.toast{position:fixed;z-index:40;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translate(-50%,-14px);opacity:0;pointer-events:none;transition:opacity .4s,transform .4s;background:var(--gold-l);color:var(--velvet);border-radius:999px;padding:9px 18px 9px 10px;display:flex;align-items:center;gap:10px;box-shadow:0 12px 30px rgba(0,0,0,.35);max-width:calc(100vw - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast .medal{width:26px;height:26px;border-radius:50%;background:var(--velvet);color:var(--gold-l);display:grid;place-items:center;font-size:13px;flex:0 0 auto}
+.toast small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.75}
+.toast b{font-size:14px}
+
+.cursor{position:fixed;z-index:35;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border:1px solid var(--gold-l);border-radius:50%;pointer-events:none;display:grid;place-items:center;transition:width .25s,height .25s,margin .25s,border-color .4s,background .25s;mix-blend-mode:normal}
+.cursor span{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-l);transition:color .4s}
+.cursor.big{width:70px;height:70px;margin:-35px 0 0 -35px;background:rgba(230,194,127,.12)}
+.cursor.tech{border-color:var(--cyan)}.cursor.tech span{color:var(--cyan)}
+@media (pointer:coarse){.cursor{display:none}}
+
+/* ---------- overlays ---------- */
+#ui{position:relative;z-index:20}
+.panel{position:fixed;left:max(24px,env(safe-area-inset-left,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 26px);width:min(430px,calc(100vw - 32px));opacity:0;transform:translateY(18px);transition:opacity .45s ease,transform .45s ease;pointer-events:none;border-radius:6px}
+.panel.on{opacity:1;transform:none;pointer-events:auto}
+.velvet{background:rgba(29,15,38,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(230,194,127,.3);padding:22px 22px 20px;color:var(--wall)}
+.paper{background:var(--paper);color:var(--ink);padding:18px 20px;box-shadow:0 20px 40px rgba(36,21,46,.25);border:1px solid var(--wall-2)}
+.bp{background:rgba(8,22,36,.84);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(124,211,232,.45);padding:22px;color:var(--bp-ink)}
+.panel h3{font-family:var(--display);font-weight:500;line-height:1.05}
+.panel p{margin-top:8px;font-size:14.5px}
+
+.hero{left:50%;transform:translate(-50%,18px);text-align:center;width:min(520px,calc(100vw - 32px));display:flex;flex-direction:column;align-items:center;gap:10px}
+.hero.on{transform:translate(-50%,0)}
+.hero p{color:var(--wall-2);font-size:15px;margin:0}
+.hint{display:flex;flex-direction:column;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-l)}
+.hint i{width:1px;height:36px;background:linear-gradient(var(--gold-l),transparent);animation:drip 1.8s ease-in-out infinite}
+@keyframes drip{0%{transform:scaleY(.2);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}100%{transform:scaleY(.2);transform-origin:bottom}}
+
+.lobby h3{font-size:clamp(34px,4vw,46px);color:var(--wall)}
+.lobby h3 em{color:var(--gold-l)}
+.lobby .eyebrow{color:var(--gold-l)}
+.dir{margin-top:14px;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13.5px;border-top:1px solid rgba(230,194,127,.25);padding-top:12px}
+.dir b{font-family:var(--display);font-style:italic;font-weight:500;font-size:17px;color:var(--gold-l)}
+.dir span{color:var(--wall-2);align-self:center}
+
+.placard .cat{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.placard h3{font-style:italic;font-size:28px;margin-top:4px;color:var(--ink)}
+.placard .meta{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+.placard .meta b{color:var(--ink);font-weight:600}
+.placard p{color:var(--ink)}
+.placard p b{color:var(--plum);font-weight:600}
+
+.roles{display:flex;flex-direction:column;margin-top:12px;border-top:1px solid rgba(230,194,127,.25)}
+.roles div{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid rgba(230,194,127,.15)}
+.roles .yr{font-family:var(--mono);font-size:11px;color:var(--gold-l);font-variant-numeric:tabular-nums;padding-top:2px}
+.roles b{font-weight:600;font-size:14px;display:block}
+.roles span{font-size:12.5px;color:var(--wall-2)}
+.velvet h3{font-size:32px;color:var(--wall)}
+.velvet h3 em{color:var(--gold-l)}
+.velvet .eyebrow{color:var(--gold-l)}
+.traits{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.traits span{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-l);border:1px solid rgba(230,194,127,.45);padding:3px 8px;border-radius:2px}
+
+.bp .tag{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
+.bp .tag span:last-child{color:var(--bp-soft)}
+.bp h3{font-size:36px;color:var(--bp-ink);margin-top:6px;font-weight:600}
+.bp p{color:var(--bp-soft)}
+.arch{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:12px;padding:10px;border:1px dashed rgba(124,211,232,.35);border-radius:3px}
+.arch b{font-family:var(--mono);font-weight:500;font-size:11px;border:1px solid rgba(124,211,232,.55);padding:2px 6px;border-radius:2px;background:rgba(124,211,232,.08)}
+.arch i{font-style:normal;color:var(--cyan);font-family:var(--mono);font-size:11px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.chips span{font-family:var(--mono);font-size:10.5px;background:var(--bp-2);padding:3px 7px;border-radius:2px}
+.status{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:#7FE0A8;margin-top:10px}
+.status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+.status.proto{color:var(--gold-l)}
+.shop{background:rgba(24,16,10,.88);border-color:rgba(242,169,59,.5)}
+.shop h3 em,.shop .eyebrow,.shop .sub{color:#F2A93B}
+.shop .pts li::marker{color:#F2A93B}
+.shop .traits span{color:#F2A93B;border-color:rgba(242,169,59,.5)}
+.skill{margin-top:12px}
+.skill .sk{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan)}
+.skill .chips{margin-top:5px}
+
+.panel{max-height:calc(100vh - 110px);overflow:auto}
+.pts{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;line-height:1.5}
+.velvet .pts{color:var(--wall-2)}.velvet .pts li::marker{color:var(--gold-l)}
+.bp .pts{color:var(--bp-ink)}.bp .pts li::marker{color:var(--cyan)}
+.sub{display:block;font-size:13px;margin-top:4px}
+.velvet .sub{color:var(--gold-l)}.bp .sub{color:var(--cyan)}
+.job{margin-top:12px;padding-top:10px;border-top:1px solid rgba(230,194,127,.25);display:flex;flex-direction:column;gap:2px}
+.job b{font-weight:600;font-size:14.5px;color:var(--wall)}
+.job span{font-family:var(--mono);font-size:11px;color:var(--gold-l);letter-spacing:.04em}
+.links{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em}
+.links a{color:var(--gold-l);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:1px}
+.bp .links a{color:var(--cyan)}
+.lang{margin-top:12px;font-size:12.5px;color:var(--wall-2)}
+.final{left:50%;transform:translate(-50%,18px);width:min(900px,calc(100vw - 32px));display:grid;grid-template-columns:1.1fr 1fr;gap:24px;align-items:end}
+.final.on{transform:translate(-50%,0)}
+.final h3{font-size:clamp(34px,4.4vw,52px)}
+.final p{color:var(--wall-2)}
+.souv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.souv div,.souv a{background:var(--paper);color:var(--ink);border-radius:3px;padding:10px 12px;text-decoration:none;display:block}
+.souv a:hover{background:#fff}
+.souv b{font-family:var(--display);font-weight:600;font-size:18px;display:block}
+.souv span{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.mail{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mail code{font-family:var(--mono);font-size:15px;color:var(--wall);border-bottom:1px solid rgba(230,194,127,.6);padding-bottom:8px;user-select:all;word-break:break-all}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:600 13.5px var(--body);background:var(--gold-l);color:#24150A;border:0;padding:10px 16px;border-radius:3px;cursor:pointer}
+.btn:hover{background:#F0D59E}
+.btn.ghost{background:transparent;color:var(--gold-l);border:1px solid rgba(230,194,127,.6)}
+
+.wing{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;z-index:19;mix-blend-mode:difference}
+.wing h2{font-family:var(--display);font-weight:500;font-style:normal;font-size:clamp(54px,11vw,170px);line-height:1;color:#fff;text-align:center;padding:0 16px;overflow:hidden}
+.wing h2 small{display:block;font-family:var(--mono);font-style:normal;font-size:12px;letter-spacing:.3em;text-transform:uppercase;margin-bottom:16px}
+.wing h2 small{opacity:0;transition:opacity .5s}
+.wing.on h2 small{opacity:1}
+.wing .ch{display:inline-block;transform:translateY(105%);opacity:0;transition:transform .8s cubic-bezier(.2,.8,.2,1),opacity .5s;transition-delay:calc(var(--i) * 32ms)}
+.wing.on .ch{transform:none;opacity:1}
+
+/* ---------- career tower ---------- */
+.night{background:rgba(12,14,36,.86)}
+.fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:18}
+.floor-ind{position:fixed;z-index:30;top:calc(env(safe-area-inset-top,0px) + 60px);left:max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:8px;background:rgba(12,14,36,.82);border:1px solid rgba(230,194,127,.45);border-radius:4px;padding:6px 12px;font-family:var(--mono);color:var(--gold-l);opacity:0;transition:opacity .4s;pointer-events:none}
+.floor-ind.on{opacity:1}
+.floor-ind .arr{font-size:10px}
+.floor-ind b{font-weight:500;font-size:20px;letter-spacing:.08em;font-variant-numeric:tabular-nums;min-width:2ch;text-align:center}
+
+/* ---------- language ---------- */
+.lang-pick{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);right:max(16px,env(safe-area-inset-right,0px));display:flex;border:1px solid rgba(230,194,127,.45);border-radius:999px;overflow:hidden}
+.lang-pick button{background:transparent;border:0;color:var(--wall-2);font-family:var(--mono);font-size:12px;letter-spacing:.1em;padding:7px 14px;cursor:pointer}
+.lang-pick button.on{background:var(--gold-l);color:#24150A}
+html[lang="zh-CN"] .eyebrow,html[lang="zh-CN"] .tag,html[lang="zh-CN"] .placard .cat{letter-spacing:.08em}
+
+/* ---------- loader ---------- */
+.loader{position:fixed;inset:0;z-index:60;background:radial-gradient(110% 80% at 50% 40%,var(--velvet-3),var(--velvet) 65%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));transition:opacity .9s ease,visibility .9s}
+.loader.gone{opacity:0;visibility:hidden;pointer-events:none}
+.printer{width:min(320px,84vw);display:flex;flex-direction:column;align-items:center}
+.pr-top{width:100%;background:linear-gradient(180deg,#3A1F48,#24122E);border:1px solid rgba(230,194,127,.45);border-radius:14px 14px 6px 6px;padding:16px 18px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 18px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08)}
+.pr-brand{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;color:var(--gold-l)}
+.pr-led{width:9px;height:9px;border-radius:50%;background:#E6C27F;box-shadow:0 0 10px #E6C27F;animation:prblink .5s steps(1) infinite}
+.pr-led.done{background:#7FE0A8;box-shadow:0 0 10px #7FE0A8;animation:none}
+@keyframes prblink{50%{opacity:.2}}
+.pr-slot{width:88%;height:10px;margin-top:-18px;background:#0A0410;border-radius:5px;box-shadow:inset 0 2px 4px rgba(0,0,0,.85),0 1px 0 rgba(230,194,127,.35);position:relative;z-index:2}
+.pr-mouth{width:80%;height:318px;overflow:hidden;margin-top:-5px;position:relative;z-index:1;padding:0 6px 10px}
+.ticket{transform:translateY(-100%);background:#F6F1E6;color:#24152E;border-radius:0 0 6px 6px;padding:18px 18px 16px;font-family:var(--mono);display:flex;flex-direction:column;gap:9px;height:100%;box-shadow:0 8px 18px rgba(0,0,0,.35);border-top:2px dashed rgba(36,21,46,.25);transition:opacity .45s ease,transform .45s ease}
+.ticket.taken{transform:translateY(-34px) rotate(-6deg)!important;opacity:0}
+.tk-row{display:flex;justify-content:space-between;gap:8px;font-size:9.5px;letter-spacing:.06em;color:#5E4E6B;white-space:nowrap}
+.tk-admit{font-family:var(--display);font-weight:700;font-size:40px;line-height:1;color:var(--plum);border-top:1px dashed rgba(36,21,46,.35);padding-top:12px;margin-top:2px}
+.tk-name{font-family:var(--display);font-size:24px;line-height:1.1}
+.tk-name em{color:var(--plum)}
+.tk-sub{font-size:10.5px;letter-spacing:.06em;color:#5E4E6B}
+.tk-rooms{font-size:10px;line-height:1.55;border-top:1px dashed rgba(36,21,46,.35);padding-top:9px}
+.tk-bar{height:40px;margin-top:auto;background:repeating-linear-gradient(90deg,#24152E 0 2px,transparent 2px 4px,#24152E 4px 7px,transparent 7px 9px,#24152E 9px 10px,transparent 10px 13px,#24152E 13px 14px,transparent 14px 17px)}
+@media (max-height:700px){.printer{transform:scale(.82);margin:-34px 0}}
+@media (prefers-reduced-motion:reduce){.pr-led{animation:none}.ticket{transition:opacity .2s}}
+.loader .count{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-l);font-variant-numeric:tabular-nums}
+.loader h1{font-family:var(--display);font-weight:500;font-size:clamp(34px,6vw,56px);line-height:1;text-align:center}
+.loader h1 em{color:var(--gold-l)}
+.loader .enter{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;opacity:0;transform:translateY(10px);transition:opacity .5s,transform .5s;pointer-events:none}
+.loader .enter.ready{opacity:1;transform:none;pointer-events:auto}
+.loader .note{max-width:44ch;text-align:center;color:var(--wall-2);font-size:13.5px}
+
+/* ---------- flat fallback (no WebGL) ---------- */
+html.flat #gl,html.flat #track,html.flat .wing,html.flat .cursor,html.flat .progress{display:none}
+html.flat #ui{display:flex;flex-direction:column;gap:16px;padding:90px max(16px,env(safe-area-inset-right,0px)) 60px max(16px,env(safe-area-inset-left,0px));max-width:900px;margin:0 auto}
+html.flat .panel{position:static;opacity:1;transform:none;pointer-events:auto;width:auto}
+html.flat .hero{display:none}
+
+@media (max-width:640px){
+  .panel{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);max-height:46vh;overflow:auto}
+  .hero{left:50%;right:auto;width:calc(100vw - 32px)}
+  .final{grid-template-columns:1fr;left:50%;right:auto;width:calc(100vw - 32px);max-height:70vh}
+  .souv{grid-template-columns:1fr 1fr 1fr}
+  .velvet h3{font-size:26px}.bp h3{font-size:28px}.placard h3{font-size:23px}
+  .roles div{grid-template-columns:96px 1fr}
+  .wayfinder .where{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .hint i,.pill.on .bars i{animation:none}
+  .wing .ch{transition:opacity .3s;transform:none}
+  .panel{transition:opacity .2s}
+}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<div id="track" aria-hidden="true"></div>
+
+<!-- HUD -->
+<div class="progress" id="progress" aria-hidden="true"></div>
+<div class="hud-l">
+  <a class="brand" href="#" id="brand" aria-label="Back to the ticket counter">P.E.</a>
+  <button class="pill" id="langBtn" type="button" aria-label="Switch language / 切换语言">中文</button>
+</div>
+<div class="hud-r">
+  <nav class="pill wayfinder" aria-label="Rooms">
+    <span class="dots" id="dots"></span>
+    <span class="where" id="where">Ticket Counter</span>
+  </nav>
+  <div class="ach-wrap">
+    <button class="pill" id="achBtn" type="button" aria-expanded="false">★ <span id="achCount">0/5</span></button>
+    <div class="ach-list" id="achList" hidden></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span class="medal">★</span><span><small data-zh="成就解锁">Achievement unlocked</small><b id="toastTxt"></b></span></div>
+<div class="cursor" id="cursor" aria-hidden="true"><span id="cursorLbl">Tilt</span></div>
+<div class="fade" id="fade" aria-hidden="true"></div>
+<div class="floor-ind" id="floorInd" aria-hidden="true"><span class="arr">▲</span><b id="floorNum">L</b></div>
+
+<!-- OVERLAYS -->
+<div id="ui">
+  <div class="panel hero" data-a="-100" data-b="52"><template lang="zh">
+    <span class="eyebrow" style="color:var(--gold-l)">售票处</span>
+    <p>入场需要一张钞票。移动鼠标，仔细看看它。</p>
+    <div class="hint">向下滚动，递出钞票<i></i></div></template>
+    <span class="eyebrow" style="color:var(--gold-l)">Ticket counter</span>
+    <p>Admission costs one banknote. Move your mouse to inspect it.</p>
+    <div class="hint">Scroll to hand it over<i></i></div>
+  </div>
+
+  <div class="panel velvet lobby" data-a="172" data-b="278"><template lang="zh">
+    <span class="eyebrow">大厅 · 上海</span>
+    <h3 style="margin-top:8px">Patricia <em>Eileen</em></h3>
+    <p style="color:var(--wall-2)">上海交通大学电子与计算机工程专业学生。做后端开发，带领团队，兴趣多到一个展厅装不下。</p>
+    <div class="dir">
+      <b>东展厅</b><span>我热爱的</span>
+      <b>领导力展厅</b><span>我带领过的</span>
+      <b>科技馆</b><span>我写的软件</span>
+      <b>工作坊</b><span>我做的硬件</span>
+      <b>职业大厦</b><span>我工作过的地方</span>
+      <b>天台</b><span>纪念品店与联系方式</span>
+    </div></template>
+    <span class="eyebrow">Lobby · Est. Shanghai</span>
+    <h3 style="margin-top:8px">Patricia <em>Eileen</em></h3>
+    <p style="color:var(--wall-2)">An ECE student at Shanghai Jiao Tong University who builds backends, leads teams, and has more interests than one room can hold.</p>
+    <div class="dir">
+      <b>East Gallery</b><span>What I love</span>
+      <b>Leadership Hall</b><span>Who I've led</span>
+      <b>Tech Wing</b><span>Software I build</span>
+      <b>Workshop</b><span>Hardware I build</span>
+      <b>Career Tower</b><span>Where I've worked</span>
+      <b>Rooftop</b><span>Gift shop &amp; how to reach me</span>
+    </div>
+  </div>
+
+  <div class="wing" data-a="292" data-b="342"><template lang="zh"><h2><small>现在进入</small><span class="split">东展厅</span></h2></template><h2><small>Now entering</small><span class="split">East Gallery</span></h2></div>
+
+  <div class="panel paper placard" data-art="0"><template lang="zh"><span class="cat">展品 01 · 从这里开始</span><h3>从零到一</h3><div class="meta"><b>Patricia Eileen</b> · 电路、代码、团队、想法</div><p>我是<b>上海交通大学</b><b>电子与计算机工程</b>专业的学生，热爱科技、创业和新想法。我喜欢带领团队，从无到有地创造，并看到它真正带来改变。</p><p>到目前为止，这意味着：在<b>曼底利银行</b>开发供 <b>25,000+ 名员工</b>使用的后端 API，做一款帮助自闭症儿童沟通的 AAC 键盘，以及带领一个 <b>50 余人</b>的学生协会。现在我正在开发 <b>Cognitive</b>，一款 AI 日程规划助手。</p></template><span class="cat">Cat. no. 01 · Start here</span><h3>Zero to One</h3><div class="meta"><b>Patricia Eileen</b> · circuits, code, teams, ideas</div><p>I'm an <b>Electrical and Computer Engineering</b> student at <b>Shanghai Jiao Tong University</b>, and I love tech, startups and new ideas. I like to lead, to build things from nothing, and to see them make a real difference.</p><p>So far that has meant backend APIs used by <b>25,000+ employees</b> at <b>Bank Mandiri</b>, an AAC keyboard that helps autistic children communicate, and leading a <b>50-person</b> student association. Right now I'm building <b>Cognitive</b>, an AI scheduling assistant.</p></div>
+  <div class="panel paper placard" data-art="1"><template lang="zh"><span class="cat">展品 02 · 市场与抱负</span><h3>复利</h3><div class="meta"><b>Patricia Eileen</b> · 市场、赞助合作、创收项目</div><p>我着迷于金钱的运作方式：价值如何被创造、投资和增长。比起等待，我更愿意自己去赚。</p><p>作为 PERMIT Shanghai 主席，我负责协会的赞助与创收项目，本学年至今已累计筹集<b>超过 20,000 元</b>。小小的成功，持续累积。</p></template><span class="cat">Cat. no. 02 · Markets &amp; ambition</span><h3>Compound Interest</h3><div class="meta"><b>Patricia Eileen</b> · markets, sponsorship deals, revenue projects</div><p>I'm fascinated by how money works: how value gets created, invested and grown. I'd rather earn it than wait for it.</p><p>As president of PERMIT Shanghai I run our sponsorships and revenue projects, and we've raised <b>over ¥20,000</b> since the start of this academic year. Small, steady wins compound.</p></div>
+  <div class="panel paper placard" data-art="2"><template lang="zh"><span class="cat">展品 03 · 艺术</span><h3>梅紫与金的习作</h3><div class="meta"><b>Patricia Eileen</b> · 色彩、形状、这个网站</div><p>这里的每个房间都经过设计，包括这一间。</p></template><span class="cat">Cat. no. 03 · Art</span><h3>Study in Plum and Gold</h3><div class="meta"><b>Patricia Eileen</b> · colour, shape, this website</div><p>Every room here was designed, this one included.</p></div>
+  <div class="panel paper placard" data-art="3"><template lang="zh"><span class="cat">展品 04 · 旅行</span><h3>印度尼西亚 → 上海</h3><div class="meta"><b>Patricia Eileen</b> · 登机牌、地图、一款旅行规划 App</div><p>用城市丈量的距离。仍在继续。</p></template><span class="cat">Cat. no. 04 · Travel</span><h3>Indonesia → Shanghai</h3><div class="meta"><b>Patricia Eileen</b> · boarding passes, maps, a trip-planning app</div><p>Distance, measured in cities. Ongoing.</p></div>
+  <div class="panel paper placard" data-art="4"><template lang="zh"><span class="cat">展品 05 · 阅读</span><h3>页边批注</h3><div class="meta"><b>Patricia Eileen</b> · 纸、墨、借来的想法</div><p>这栋楼里大多数好点子的起点。</p></template><span class="cat">Cat. no. 05 · Reading</span><h3>Marginalia</h3><div class="meta"><b>Patricia Eileen</b> · paper, ink, borrowed ideas</div><p>Where most of the good ideas in this building started.</p></div>
+  <div class="panel paper placard" data-art="5"><template lang="zh"><span class="cat">展品 06 · 辩论</span><h3>反驳</h3><div class="meta"><b>Patricia Eileen</b> · 论点、证据、被改变的想法</div><p>选择立场，捍卫它。对方更有道理时，就改变立场。</p></template><span class="cat">Cat. no. 06 · Debate</span><h3>Rebuttal</h3><div class="meta"><b>Patricia Eileen</b> · arguments, evidence, changed minds</div><p>Take a side. Defend it. Switch when the other side is better.</p></div>
+  <div class="panel paper placard" data-art="6"><template lang="zh"><span class="cat">展品 07 · 烹饪与烘焙</span><h3>千层酥皮</h3><div class="meta"><b>Patricia Eileen</b> · 黄油、面粉、精确</div><p>烘焙是可以吃的工程，烹饪是规则放松的地方。</p></template><span class="cat">Cat. no. 07 · Cooking &amp; Baking</span><h3>Laminated Dough</h3><div class="meta"><b>Patricia Eileen</b> · butter, flour, precision</div><p>Baking is engineering you can eat. Cooking is where the rules relax.</p></div>
+  <div class="panel paper placard" data-art="7"><template lang="zh"><span class="cat">展品 08 · 解决问题</span><h3>已解决</h3><div class="meta"><b>Patricia Eileen</b> · 问题需要的一切</div><p>贯穿每个展厅的主线。这个迷宫是实时生成并求解的。</p></template><span class="cat">Cat. no. 08 · Problem Solving</span><h3>Solved</h3><div class="meta"><b>Patricia Eileen</b> · whatever the problem needs</div><p>The thread that runs through every wing. This maze is generated and solved live.</p></div>
+
+  <div class="wing" data-a="888" data-b="930"><template lang="zh"><h2><small>现在进入</small><span class="split">领导力展厅</span></h2></template><h2><small>Now entering</small><span class="split">Leadership Hall</span></h2></div>
+
+  <div class="panel velvet" data-a="962" data-b="1018"><template lang="zh">
+    <span class="eyebrow">铭牌 · 2025年5月 — 6月</span>
+    <h3 style="margin-top:8px">团队负责人 · <em>火星车</em></h3>
+    <span class="sub">自主火星车原型</span>
+    <ul class="pts">
+      <li>采用 AutoCAD 优化桁架结构与 Arduino 嵌入式系统，设计并制造出重量不足 1 公斤的火星车，实现 10 公斤以上的有效载荷能力。</li>
+      <li>开发基于传感器反馈与直流电机驱动的实时控制算法，完成自主导航功能，确保精准定位、动态避障及系统运行稳定性。</li>
+    </ul>
+    <p class="lang">语言：英语、印尼语（母语）· 中文（HSK 5）</p></template>
+    <span class="eyebrow">Plaque · May — Jun 2025</span>
+    <h3 style="margin-top:8px">Team Lead, <em>Mars Rover</em></h3>
+    <span class="sub">Autonomous rover prototype</span>
+    <ul class="pts">
+      <li>Optimised the truss structure in AutoCAD and built the Arduino embedded system: a rover under 1 kg that carries over 10 kg.</li>
+      <li>Wrote real-time control from sensor feedback and DC motor drive for autonomous navigation, with precise positioning, dynamic obstacle avoidance and stable operation.</li>
+    </ul>
+    <p class="lang">Languages: English and Bahasa Indonesia (native) · 中文 (HSK 5)</p>
+  </div>
+
+  <div class="panel velvet" data-a="1024" data-b="1078"><template lang="zh">
+    <span class="eyebrow">铭牌 · 2026年7月 — 至今</span>
+    <h3 style="margin-top:8px"><em>主席</em></h3>
+    <span class="sub">PERMIT Shanghai · 上海印度尼西亚留华学生协会</span>
+    <ul class="pts">
+      <li>统筹管理 9 个部门、50 余名成员，负责协会整体运营、跨部门协作及项目推进，服务上海地区 1,000 余名印度尼西亚留学生。</li>
+      <li>负责企业赞助及对外合作，包括合作方案提案、合作条款洽谈及合作关系维护，与企业及机构合作伙伴建立并维持长期合作关系。</li>
+      <li>统筹创收项目的全流程策划与执行，包括学生旅游及新生服务等项目，负责合作伙伴对接、市场推广、运营执行及财务管理，自本学年开始已累计筹集超过 20,000 元人民币。</li>
+      <li>与印度尼西亚共和国驻上海总领事馆保持合作，参与社区活动、官方项目及大型活动的策划与执行，并多次担任活动主持人。</li>
+    </ul>
+    <div class="links"><a href="https://www.instagram.com/permitshanghai/" target="_blank" rel="noopener">Instagram @permitshanghai ↗</a><span style="color:var(--wall-2)">小红书 · permitshanghai</span></div></template>
+    <span class="eyebrow">Plaque · Jul 2026 — present</span>
+    <h3 style="margin-top:8px"><em>President</em></h3>
+    <span class="sub">PERMIT Shanghai · Indonesian Students Association in Shanghai</span>
+    <ul class="pts">
+      <li>Lead 9 departments and 50+ members, running operations and cross-department projects for 1,000+ Indonesian students in Shanghai.</li>
+      <li>Own corporate sponsorship and partnerships: proposals, negotiating terms, and long-term relationships with companies and institutions.</li>
+      <li>Run revenue projects end to end, including student trips and new-student services. Over ¥20,000 raised since the start of this academic year.</li>
+      <li>Work with the Consulate General of the Republic of Indonesia in Shanghai on community events and official programmes, often as MC.</li>
+    </ul>
+    <div class="links"><a href="https://www.instagram.com/permitshanghai/" target="_blank" rel="noopener">Instagram @permitshanghai ↗</a><span style="color:var(--wall-2)">Xiaohongshu · permitshanghai</span></div>
+  </div>
+
+  <div class="panel velvet" data-a="1080" data-b="1134"><template lang="zh">
+    <span class="eyebrow">铭牌 · 2025年7月 — 2026年6月</span>
+    <h3 style="margin-top:8px"><em>副会长</em></h3>
+    <span class="sub">PERMIT Shanghai</span>
+    <ul class="pts">
+      <li>负责统筹管理社交媒体、设计、体育及活动策划四个部门，带领 40 余名成员，确保跨部门协作顺畅及项目顺利交付。</li>
+      <li>通过小红书平台成功促成 10 余项活动赞助合作，并制定内容策略，实现 Instagram 月曝光量达 30 万次。</li>
+      <li>担任 200 余人迎新晚会及与知名运动品牌合作的趣味跑活动负责人，统筹物流协调、场地安排及流程规划。</li>
+    </ul></template>
+    <span class="eyebrow">Plaque · Jul 2025 — Jun 2026</span>
+    <h3 style="margin-top:8px">Vice <em>President</em></h3>
+    <span class="sub">PERMIT Shanghai</span>
+    <ul class="pts">
+      <li>Managed 4 departments (social media, design, sports, events) and 40+ members.</li>
+      <li>Secured 10+ event sponsorships through Xiaohongshu, and set the content strategy behind 300,000 monthly impressions on Instagram.</li>
+      <li>Led a 200+ guest welcome night and a fun run with a well-known sportswear brand: logistics, venue and run of show.</li>
+    </ul>
+  </div>
+
+  <div class="panel velvet" data-a="1140" data-b="1192"><template lang="zh">
+    <span class="eyebrow">肖像 · ENTJ 型</span>
+    <h3 style="margin-top:8px"><em>指挥官</em></h3>
+    <p style="color:var(--wall-2)">目光长远，决策果断，带着大家一起前进。</p>
+    <div class="traits"><span>战略</span><span>果断</span><span>直接</span><span>进取</span></div></template>
+    <span class="eyebrow">Portrait · Type ENTJ</span>
+    <h3 style="margin-top:8px">The <em>Commander</em></h3>
+    <p style="color:var(--wall-2)">Plans far ahead, decides quickly, and brings people along for the ride.</p>
+    <div class="traits"><span>Strategic</span><span>Decisive</span><span>Direct</span><span>Driven</span></div>
+  </div>
+
+  <div class="panel velvet" data-a="1198" data-b="1252"><template lang="zh">
+    <span class="eyebrow">铭牌 · 2025年4月 — 7月</span>
+    <h3 style="margin-top:8px">团队负责人 · <em>AAC 键盘</em></h3>
+    <span class="sub">上海交通大学创新实践与研究</span>
+    <ul class="pts">
+      <li>带领一支由中外本科生组成的 5 人团队，为上海青聪泉儿童智能训练中心定制开发 Augmentative and Alternative Communication 拼音键盘，助力 20 余名自闭症儿童提升沟通与自我表达能力。</li>
+      <li>使用 React Native、Kotlin 及 XML 在 Android Studio 中设计实现核心功能，包括拼音声调显示、语音播报、汉字转换及图文交互界面，并通过中文沟通协作完成用户测试与迭代优化。</li>
+    </ul></template>
+    <span class="eyebrow">Plaque · Apr — Jul 2025</span>
+    <h3 style="margin-top:8px">Team Lead, <em>AAC Keyboard</em></h3>
+    <span class="sub">SJTU Innovation Practice &amp; Research</span>
+    <ul class="pts">
+      <li>Led a 5-person team of Chinese and international undergraduates building an Augmentative and Alternative Communication Pinyin keyboard for Shanghai Qingcongquan Children's Training Center, helping 20+ autistic children communicate.</li>
+      <li>Built the core features in Android Studio with React Native, Kotlin and XML: Pinyin tone display, speech output, character conversion and a picture-and-text interface. Ran user testing and iterations in Chinese.</li>
+    </ul>
+  </div>
+
+  <div class="panel velvet" data-a="1255" data-b="1306"><template lang="zh">
+    <span class="eyebrow">铭牌 · 2026年9月 — 至今</span>
+    <h3 style="margin-top:8px">团队负责人 · <em>华友</em></h3>
+    <span class="sub">电子烟拆解与电池回收</span>
+    <ul class="pts">
+      <li>主导废旧电子烟自动化拆解项目一期原型开发，基于传感器实现电子烟结构识别与定位，驱动切割设备完成自动拆解，目前正针对识别精度与拆解稳定性持续迭代优化。</li>
+      <li>初步搭建锂电池回收分选流程，完成拆解电池的检测、分类与再利用验证，推动电池资源化利用。</li>
+    </ul></template>
+    <span class="eyebrow">Plaque · Sep 2026 — present</span>
+    <h3 style="margin-top:8px">Team Lead, <em>Huayou</em></h3>
+    <span class="sub">E-cigarette disassembly &amp; battery recovery</span>
+    <ul class="pts">
+      <li>Leading phase one of an automated disassembly prototype: sensors identify and locate each e-cigarette's structure and drive the cutter. Recognition accuracy and stability are being iterated now.</li>
+      <li>Built an early lithium-battery recovery flow that tests, sorts and validates recovered batteries for reuse.</li>
+    </ul>
+  </div>
+
+  <div class="panel velvet" data-a="1315" data-b="1360"><template lang="zh">
+    <span class="eyebrow" style="color:var(--cyan)">穿过发光的门</span>
+    <h3 style="margin-top:8px">小心<em style="color:var(--cyan)">线缆</em></h3>
+    <p style="color:var(--wall-2)">下一站是科技馆：我写的软件，以及它们如何连接。</p></template>
+    <span class="eyebrow" style="color:var(--cyan)">Through the lit door</span>
+    <h3 style="margin-top:8px">Mind the <em style="color:var(--cyan)">wires</em></h3>
+    <p style="color:var(--wall-2)">The Tech Wing is next: what I build, and how it's wired.</p>
+  </div>
+
+  <div class="wing" data-a="1362" data-b="1400"><template lang="zh"><h2><small>现在进入</small><span class="split">科技馆</span></h2></template><h2><small>Now entering</small><span class="split">Tech Wing</span></h2></div>
+
+  <div class="panel bp" data-a="1430" data-b="1490"><template lang="zh">
+    <div class="tag"><span>展品 TW-00 · 代码仓库墙</span><span>@tricoded</span></div>
+    <h3>项目与技能</h3>
+    <p>四个项目，从 C++ 终端坦克游戏到全栈 AI 应用。工作经历在楼上的职业大厦。</p>
+    <div class="skill"><span class="sk">编程语言</span><div class="chips"><span>Java</span><span>Python</span><span>C/C++</span><span>SQL</span><span>JavaScript</span><span>Kotlin</span><span>XML</span><span>Flutter/Dart</span></div></div>
+    <div class="skill"><span class="sk">框架与工具</span><div class="chips"><span>Spring Framework</span><span>Firebase Firestore</span><span>Node.js</span><span>React</span><span>Django</span></div></div>
+    <div class="skill"><span class="sk">开发者工具与实践</span><div class="chips"><span>Git</span><span>REST APIs</span><span>Postman</span><span>Swagger</span><span>Docker</span></div></div>
+    <div class="skill"><span class="sk">数据库与后端</span><div class="chips"><span>SQL</span><span>Redis Insight</span></div></div>
+    <div class="links"><a href="https://github.com/tricoded" target="_blank" rel="noopener">github.com/tricoded ↗</a></div></template>
+    <div class="tag"><span>Exhibit TW-00 · Repository wall</span><span>@tricoded</span></div>
+    <h3>Projects &amp; skills</h3>
+    <p>Four projects, from a terminal tank game in C++ to a full-stack AI app. Work experience is upstairs, in the Career Tower.</p>
+    <div class="skill"><span class="sk">Languages</span><div class="chips"><span>Java</span><span>Python</span><span>C/C++</span><span>SQL</span><span>JavaScript</span><span>Kotlin</span><span>XML</span><span>Flutter/Dart</span></div></div>
+    <div class="skill"><span class="sk">Frameworks &amp; tools</span><div class="chips"><span>Spring Framework</span><span>Firebase Firestore</span><span>Node.js</span><span>React</span><span>Django</span></div></div>
+    <div class="skill"><span class="sk">Developer tools &amp; practices</span><div class="chips"><span>Git</span><span>REST APIs</span><span>Postman</span><span>Swagger</span><span>Docker</span></div></div>
+    <div class="skill"><span class="sk">Databases &amp; backend</span><div class="chips"><span>SQL</span><span>Redis Insight</span></div></div>
+    <div class="links"><a href="https://github.com/tricoded" target="_blank" rel="noopener">github.com/tricoded ↗</a></div>
+  </div>
+
+  <div class="panel bp" data-a="1494" data-b="1548"><template lang="zh">
+    <div class="tag"><span>标本 TW-01</span><span>2026年8月 —</span></div>
+    <h3>Cognitive</h3>
+    <ul class="pts">
+      <li>开发 JavaScript 浏览器插件，自动采集用户 AI 使用行为事件（如使用时长、频次、场景），并基于 Python（FastAPI）搭建数据接入服务，统一事件数据格式，为下游个性化建模提供结构化行为数据。</li>
+      <li>基于 Celery + Redis 搭建异步事件处理与模型推理链路，打通“客户端埋点、后端接入、存储、分析”全流程，保障高并发写入下的数据时效性与一致性。</li>
+      <li>基于原始行为日志构建多维度用户特征（行为统计、时间分布、目标偏好等），作为 LLM 上下文输入，提升生成结果的个性化程度。</li>
+      <li>基于 Python 开发 AI 日程规划助手，通过 Ollama 集成开源大模型，实现从用户目标分析到每日计划生成的 LLM 应用。</li>
+    </ul>
+    <div class="arch"><b>浏览器插件</b><i>→</i><b>FastAPI</b><i>→</i><b>Celery + Redis</b><i>→</i><b>用户特征</b><i>→</i><b>Ollama 大模型</b></div>
+    <div class="links"><a href="https://github.com/tricoded/cognitiveapp" target="_blank" rel="noopener">github.com/tricoded/cognitiveapp ↗</a></div></template>
+    <div class="tag"><span>Specimen TW-01</span><span>Aug 2026 —</span></div>
+    <h3>Cognitive</h3>
+    <ul class="pts">
+      <li>A JavaScript browser extension captures AI-usage events (duration, frequency, context). A Python FastAPI ingestion service turns them into one structured format.</li>
+      <li>Celery + Redis run async event processing and model inference, covering tracking, ingestion, storage and analysis under high-concurrency writes.</li>
+      <li>User features built from raw logs (usage stats, time patterns, goal preferences) give an Ollama-hosted open-source LLM the context to turn goals into personalised daily plans.</li>
+    </ul>
+    <div class="arch"><b>Extension</b><i>→</i><b>FastAPI</b><i>→</i><b>Celery + Redis</b><i>→</i><b>Features</b><i>→</i><b>Ollama LLM</b></div>
+    <div class="links"><a href="https://github.com/tricoded/cognitiveapp" target="_blank" rel="noopener">github.com/tricoded/cognitiveapp ↗</a></div>
+  </div>
+
+  <div class="panel bp" data-a="1554" data-b="1608"><template lang="zh">
+    <div class="tag"><span>标本 TW-02</span><span>2026年9月 —</span></div>
+    <h3>TripSync</h3>
+    <ul class="pts">
+      <li>开发跨平台多人协同旅行规划应用，支持多用户共同创建、编辑和管理共享行程。</li>
+      <li>设计用户、行程、成员、偏好、活动等关系型数据模型，通过外键约束与权限控制保障多用户并发编辑下的数据一致性。</li>
+      <li>编写 SQL 聚合成员偏好数据，结合 Google Places API 与 OpenAI API 实现地点推荐与 AI 辅助行程生成。</li>
+    </ul>
+    <div class="arch"><b>应用</b><i>→</i><b>Supabase</b><i>→</i><b>PostgreSQL</b><i>↔</i><b>Places + OpenAI</b></div></template>
+    <div class="tag"><span>Specimen TW-02</span><span>Sep 2026 —</span></div>
+    <h3>TripSync</h3>
+    <ul class="pts">
+      <li>A cross-platform app where a group creates, edits and manages one shared trip itinerary.</li>
+      <li>Relational model for users, trips, members, preferences and activities, with foreign keys and permissions keeping concurrent edits consistent.</li>
+      <li>SQL aggregates members' preferences, and the Google Places and OpenAI APIs turn them into place recommendations and AI-drafted itineraries.</li>
+    </ul>
+    <div class="arch"><b>App</b><i>→</i><b>Supabase</b><i>→</i><b>PostgreSQL</b><i>↔</i><b>Places + OpenAI</b></div>
+  </div>
+
+  <div class="panel bp" data-a="1614" data-b="1668"><template lang="zh">
+    <div class="tag"><span>标本 TW-03</span><span>2025年7月</span></div>
+    <h3>Wordle 求解器</h3>
+    <ul class="pts">
+      <li>使用 C 语言实现 Wordle 游戏克隆，基于 2000+ 单词词典完成单词选取、字母反馈逻辑及终端交互界面。</li>
+      <li>设计熵排序概率求解算法，对候选词进行评分，实现 100% 求解率，平均 5 次内完成。</li>
+    </ul>
+    <div class="chips"><span>C</span><span>信息论</span><span>终端界面</span></div>
+    <div class="links"><a href="https://github.com/tricoded/wordle_player" target="_blank" rel="noopener">github.com/tricoded/wordle_player ↗</a></div></template>
+    <div class="tag"><span>Specimen TW-03</span><span>Jul 2025</span></div>
+    <h3>Wordle Solver</h3>
+    <ul class="pts">
+      <li>A Wordle clone in C with a 2,000+ word dictionary, letter feedback and a terminal interface.</li>
+      <li>An entropy-ranked probabilistic solver scores every candidate word. It solves 100% of games, averaging within 5 guesses.</li>
+    </ul>
+    <div class="chips"><span>C</span><span>Information theory</span><span>Terminal UI</span></div>
+    <div class="links"><a href="https://github.com/tricoded/wordle_player" target="_blank" rel="noopener">github.com/tricoded/wordle_player ↗</a></div>
+  </div>
+
+  <div class="panel bp" data-a="1674" data-b="1728"><template lang="zh">
+    <div class="tag"><span>标本 TW-04</span><span>2025年7月 — 8月</span></div>
+    <h3>坦克大战</h3>
+    <ul class="pts">
+      <li>使用 C++ 开发终端坦克对战游戏，参考《坦克世界》，支持玩家对战、玩家对战 AI、AI 对战 AI 三种模式。</li>
+      <li>以矩阵表示网格化游戏状态，完成坦克移动、碰撞检测及 AI 决策，实现自动化对战模拟。</li>
+    </ul>
+    <div class="chips"><span>C++</span><span>游戏 AI</span><span>仿真</span></div>
+    <div class="links"><a href="https://github.com/tricoded/tank-battle" target="_blank" rel="noopener">github.com/tricoded/tank-battle ↗</a></div></template>
+    <div class="tag"><span>Specimen TW-04</span><span>Jul — Aug 2025</span></div>
+    <h3>Tank War</h3>
+    <ul class="pts">
+      <li>A terminal tank battle game in C++, inspired by World of Tanks, with player vs player, player vs AI and AI vs AI modes.</li>
+      <li>The grid is a matrix; tank movement, collision detection and AI decisions run fully automated battles.</li>
+    </ul>
+    <div class="chips"><span>C++</span><span>Game AI</span><span>Simulation</span></div>
+    <div class="links"><a href="https://github.com/tricoded/tank-battle" target="_blank" rel="noopener">github.com/tricoded/tank-battle ↗</a></div>
+  </div>
+
+  <div class="panel velvet shop" data-a="1736" data-b="1778"><template lang="zh">
+    <span class="eyebrow">科技馆尽头</span>
+    <h3 style="margin-top:8px">穿过<em>琥珀色的门</em></h3>
+    <p style="color:var(--wall-2)">软件已在身后。下一站是工作坊，硬件在这里诞生。</p></template>
+    <span class="eyebrow">End of the Tech Wing</span>
+    <h3 style="margin-top:8px">Through the <em>amber door</em></h3>
+    <p style="color:var(--wall-2)">Software is behind you. Next is the Workshop, where the hardware gets built.</p>
+  </div>
+
+  <div class="wing" data-a="1786" data-b="1830"><template lang="zh"><h2><small>现在进入</small><span class="split">工作坊</span></h2></template><h2><small>Now entering</small><span class="split">The Workshop</span></h2></div>
+
+  <div class="panel velvet shop" data-a="1828" data-b="1860"><template lang="zh">
+    <span class="eyebrow">工作坊 · 硬件实验室</span>
+    <h3 style="margin-top:8px">我<em>动手造</em>东西的地方</h3>
+    <p style="color:var(--wall-2)">每张工作台展示一个硬件项目的爆炸视图。在工作台前停下，它就会拆解成各个零件。</p></template>
+    <span class="eyebrow">The Workshop · Hardware lab</span>
+    <h3 style="margin-top:8px">Where I <em>build</em> things</h3>
+    <p style="color:var(--wall-2)">Each bench holds one hardware project in exploded view. Pause at a bench and it comes apart into its parts.</p>
+  </div>
+
+  <div class="panel velvet shop" data-a="1866" data-b="1906"><template lang="zh">
+    <span class="eyebrow">工作台 01 · 2025年5月 — 6月</span>
+    <h3 style="margin-top:8px"><em>火星车</em></h3>
+    <span class="sub">自主火星车原型 · 团队负责人</span>
+    <ul class="pts">
+      <li>采用 AutoCAD 优化桁架结构与 Arduino 嵌入式系统，设计并制造出重量不足 1 公斤的火星车，实现 10 公斤以上的有效载荷能力。</li>
+      <li>开发基于传感器反馈与直流电机驱动的实时控制算法，完成自主导航功能，确保精准定位、动态避障及系统运行稳定性。</li>
+    </ul>
+    <div class="traits"><span>Arduino</span><span>AutoCAD</span><span>传感器</span><span>直流电机</span><span>控制</span></div></template>
+    <span class="eyebrow">Bench 01 · May — Jun 2025</span>
+    <h3 style="margin-top:8px">Mars <em>Rover</em></h3>
+    <span class="sub">Autonomous rover prototype · Team lead</span>
+    <ul class="pts">
+      <li>Optimised the truss structure in AutoCAD and built the Arduino embedded system: a rover under 1 kg that carries over 10 kg.</li>
+      <li>Wrote real-time control from sensor feedback and DC motor drive for autonomous navigation, with precise positioning, dynamic obstacle avoidance and stable operation.</li>
+    </ul>
+    <div class="traits"><span>Arduino</span><span>AutoCAD</span><span>Sensors</span><span>DC motors</span><span>Control</span></div>
+  </div>
+
+  <div class="panel velvet shop" data-a="1916" data-b="1956"><template lang="zh">
+    <span class="eyebrow">工作台 02 · 2026年9月 — 至今</span>
+    <h3 style="margin-top:8px">华友<em>拆解</em></h3>
+    <span class="sub">电子烟自动化拆解 · 团队负责人</span>
+    <ul class="pts">
+      <li>主导废旧电子烟自动化拆解项目一期原型开发，基于传感器实现电子烟结构识别与定位，驱动切割设备完成自动拆解，目前正针对识别精度与拆解稳定性持续迭代优化。</li>
+      <li>初步搭建锂电池回收分选流程，完成拆解电池的检测、分类与再利用验证，推动电池资源化利用。</li>
+    </ul>
+    <div class="traits"><span>单片机</span><span>传感器</span><span>切割装置</span><span>锂电池回收</span></div></template>
+    <span class="eyebrow">Bench 02 · Sep 2026 — present</span>
+    <h3 style="margin-top:8px">Huayou <em>Disassembly</em></h3>
+    <span class="sub">Automated e-cigarette disassembly · Team lead</span>
+    <ul class="pts">
+      <li>Leading phase one of an automated disassembly prototype: sensors identify and locate each e-cigarette's structure, and a microcontroller drives the cutter. Recognition accuracy and stability are being iterated now.</li>
+      <li>Built an early lithium-battery recovery flow that tests, sorts and validates recovered batteries for reuse.</li>
+    </ul>
+    <div class="traits"><span>Microcontroller</span><span>Sensors</span><span>Cutting rig</span><span>Li-ion recovery</span></div>
+  </div>
+
+  <div class="panel velvet shop" data-a="1960" data-b="1992"><template lang="zh">
+    <span class="eyebrow">工作台 03</span>
+    <h3 style="margin-top:8px">下一个<em>作品</em></h3>
+    <p style="color:var(--wall-2)">暂时保密。更多硬件项目即将到来。</p></template>
+    <span class="eyebrow">Bench 03</span>
+    <h3 style="margin-top:8px">Next <em>build</em></h3>
+    <p style="color:var(--wall-2)">Under wraps for now. More hardware projects are on their way.</p>
+  </div>
+
+  <div class="panel velvet" data-a="1996" data-b="2034"><template lang="zh">
+    <span class="eyebrow">工作坊尽头</span>
+    <h3 style="margin-top:8px">乘坐<em>电梯</em></h3>
+    <p style="color:var(--wall-2)">工作经历在职业大厦：每层一个职位，纪念品店在天台。</p></template>
+    <span class="eyebrow">End of the Workshop</span>
+    <h3 style="margin-top:8px">Take the <em>elevator</em></h3>
+    <p style="color:var(--wall-2)">Work experience is in the Career Tower: one floor per role, and the gift shop on the roof.</p>
+  </div>
+
+  <div class="wing" data-a="2060" data-b="2112"><template lang="zh"><h2><small>现在进入</small><span class="split">职业大厦</span></h2></template><h2><small>Now entering</small><span class="split">Career Tower</span></h2></div>
+
+  <div class="panel velvet night" data-a="2126" data-b="2170"><template lang="zh">
+    <span class="eyebrow">职业大厦 · 大堂指引</span>
+    <h3 style="margin-top:8px">我<em>工作过</em>的地方</h3>
+    <div class="dir">
+      <b>16 层</b><span>微积分助教 · 上海交通大学</span>
+      <b>11 层</b><span>后端开发实习生 · 曼底利银行</span>
+      <b>06 层</b><span>普通化学助教 · 上海交通大学</span>
+      <b>天台</b><span>纪念品店与出口</span>
+    </div></template>
+    <span class="eyebrow">Career Tower · Lobby directory</span>
+    <h3 style="margin-top:8px">Where I've <em>worked</em></h3>
+    <div class="dir">
+      <b>Floor 16</b><span>Calculus TA · Shanghai Jiao Tong University</span>
+      <b>Floor 11</b><span>Backend Development Intern · Bank Mandiri</span>
+      <b>Floor 06</b><span>General Chemistry TA · Shanghai Jiao Tong University</span>
+      <b>Roof</b><span>Gift shop &amp; exit</span>
+    </div>
+  </div>
+
+  <div class="panel velvet night" data-a="2176" data-b="2216"><template lang="zh">
+    <span class="eyebrow">06 层 · 2025年8月 — 12月</span>
+    <h3 style="margin-top:8px">普通化学<em>助教</em></h3>
+    <span class="sub">上海交通大学</span>
+    <ul class="pts">
+      <li>每周为 60 名学生主持习题课及答疑时间，分解复杂课堂内容，提升整体理解水平。</li>
+      <li>与教学团队共同制定评分标准，批改考试、作业与测验，并提供针对性学业支持，显著提高学生成绩与学习效果。</li>
+    </ul></template>
+    <span class="eyebrow">Floor 06 · Aug — Dec 2025</span>
+    <h3 style="margin-top:8px">General Chemistry <em>TA</em></h3>
+    <span class="sub">Shanghai Jiao Tong University</span>
+    <ul class="pts">
+      <li>Ran weekly problem sessions and office hours for 60 students, breaking difficult lecture material into clear steps.</li>
+      <li>Wrote grading rubrics with the teaching team, graded exams, homework and quizzes, and gave targeted support that lifted student results.</li>
+    </ul>
+  </div>
+
+  <div class="panel velvet night" data-a="2234" data-b="2276"><template lang="zh">
+    <span class="eyebrow">11 层 · 2026年1月 — 5月</span>
+    <h3 style="margin-top:8px"><em>曼底利银行</em></h3>
+    <span class="sub">后端开发实习生 · 人力资本信息技术部门，数字渠道交付组</span>
+    <ul class="pts">
+      <li>使用 Java 与 Spring Boot 设计开发了 10 余个生产级 RESTful API，并构建了包含 8 个服务层的多层后端系统，实现了完整的校验与业务逻辑处理，最终打造了 Integrated Human Capital Suites Platform 新平台，供超过 25,000 名员工使用。</li>
+      <li>通过 Postman 执行 API 测试并完成 500 余项用户验收测试，保障了生产环境的系统可靠性及数据完整性，确保了稳健的服务间通信与可扩展的数据管道。</li>
+    </ul>
+    <div class="traits"><span>Java</span><span>Spring Boot</span><span>REST APIs</span><span>Postman</span><span>UAT</span></div></template>
+    <span class="eyebrow">Floor 11 · Jan — May 2026</span>
+    <h3 style="margin-top:8px">Bank <em>Mandiri</em></h3>
+    <span class="sub">Backend Development Intern · Human Capital IT Division, Digital Channel Delivery Group</span>
+    <ul class="pts">
+      <li>Designed and built 10+ production RESTful APIs in Java and Spring Boot inside a backend of 8 service layers, with full validation and business logic. Together they became the new Integrated Human Capital Suites platform, used by 25,000+ employees.</li>
+      <li>Ran API testing in Postman and completed 500+ user acceptance tests, keeping production reliable with sound service-to-service communication and scalable data pipelines.</li>
+    </ul>
+    <div class="traits"><span>Java</span><span>Spring Boot</span><span>REST APIs</span><span>Postman</span><span>UAT</span></div>
+  </div>
+
+  <div class="panel velvet night" data-a="2294" data-b="2336"><template lang="zh">
+    <span class="eyebrow">16 层 · 2026年5月 — 8月</span>
+    <h3 style="margin-top:8px">微积分<em>助教</em></h3>
+    <span class="sub">上海交通大学 · 留学生英文授课项目</span>
+    <ul class="pts">
+      <li>负责批改双周测验、期中考试及期末考试，按照统一评分标准进行评阅，确保评分准确性与一致性。</li>
+      <li>为留学生提供英文课程答疑与学习辅导，讲解微积分核心概念、计算方法及常见错误，帮助学生巩固课程内容。</li>
+      <li>协助任课教师完成课程及考试相关工作，整理学生常见问题及学习难点，并及时反馈学生学习情况。</li>
+    </ul></template>
+    <span class="eyebrow">Floor 16 · May — Aug 2026</span>
+    <h3 style="margin-top:8px">Calculus <em>TA</em></h3>
+    <span class="sub">Shanghai Jiao Tong University · English-taught programme for international students</span>
+    <ul class="pts">
+      <li>Graded biweekly quizzes, midterms and finals against a shared rubric for accurate, consistent marking.</li>
+      <li>Tutored international students in English on core concepts, calculation methods and common mistakes.</li>
+      <li>Supported the instructor with course and exam work, and reported common questions and learning difficulties back.</li>
+    </ul>
+  </div>
+
+  <div class="panel velvet final" data-a="2352" data-b="99999"><template lang="zh">
+    <div>
+      <span class="eyebrow">纪念品店与出口</span>
+      <h3 style="margin-top:8px">带走一份<em>纪念品</em>。</h3>
+      <p>实习机会、合作，或者在晚餐时好好辩论一场。留言簿随时开放。</p>
+      <div class="souv">
+        <div><b>简历</b><span>PDF 即将上线</span></div>
+        <div><b>LinkedIn</b><span>链接即将上线</span></div>
+        <a href="https://github.com/tricoded" target="_blank" rel="noopener"><b>GitHub</b><span>@tricoded ↗</span></a>
+      </div>
+    </div>
+    <div class="mail">
+      <span class="eyebrow">留言簿</span>
+      <code id="em">eileenslenses@gmail.com</code>
+      <div class="btns"><button class="btn" id="copyBtn" type="button">复制邮箱</button><button class="btn ghost" id="againBtn" type="button">再逛一次</button></div>
+    </div></template>
+    <div>
+      <span class="eyebrow">Gift shop &amp; exit</span>
+      <h3 style="margin-top:8px">Take a <em>souvenir.</em></h3>
+      <p>Internships, collaborations, or a good argument over dinner. The guest book is open.</p>
+      <div class="souv">
+        <div><b>Résumé</b><span>PDF coming</span></div>
+        <div><b>LinkedIn</b><span>Link coming</span></div>
+        <a href="https://github.com/tricoded" target="_blank" rel="noopener"><b>GitHub</b><span>@tricoded ↗</span></a>
+      </div>
+    </div>
+    <div class="mail">
+      <span class="eyebrow">Guest book</span>
+      <code id="em">eileenslenses@gmail.com</code>
+      <div class="btns"><button class="btn" id="copyBtn" type="button">Copy email</button><button class="btn ghost" id="againBtn" type="button">Tour again</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADER -->
+<div class="loader" id="loader">
+  <div class="lang-pick" role="group" aria-label="Language / 语言"><button type="button" data-l="en">EN</button><button type="button" data-l="zh">中文</button></div>
+  <div class="printer" aria-hidden="true">
+    <div class="pr-top"><span class="pr-brand" data-zh="门票 · 入场">TICKETS · ADMISSION</span><span class="pr-led" id="prLed"></span></div>
+    <div class="pr-slot"></div>
+    <div class="pr-mouth"><div class="ticket" id="ticketEl">
+      <div class="tk-row"><span>No. PE-2024-09</span><span id="tkDate"></span></div>
+      <div class="tk-admit" data-zh="入场券">Admit One</div>
+      <div class="tk-name">Patricia <em>Eileen</em></div>
+      <div class="tk-sub" data-zh="全馆通用 · 限参观一次">Valid for one visit · all rooms</div>
+      <div class="tk-rooms" data-zh="东展厅 · 领导力展厅 · 科技馆 · 工作坊 · 职业大厦 · 天台">Gallery · Leadership Hall · Tech Wing · Workshop · Career Tower · Rooftop</div>
+      <div class="tk-bar"></div>
+      <div class="tk-row"><span data-zh="上海">SHANGHAI</span><span>吴莉惠</span></div>
+    </div></div>
+  </div>
+  <span class="count" id="loadCount">Printing your ticket · 000%</span>
+  <div class="enter" id="enter"><button class="btn" id="enterBtn" type="button" data-zh="取走门票">Take your ticket</button></div>
+  <p class="note" id="loadNote" data-zh="建议使用电脑浏览。向下滚动即可穿过各个展厅。">Best on a laptop. Scroll to move through the rooms.</p>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* load three.js from the first CDN that answers (jsDelivr works best from mainland China) */
+function loadThree(urls,cb){
+  if(window.THREE||!urls.length)return cb();
+  var s=document.createElement('script'),done=false;
+  var next=function(){if(done)return;done=true;clearTimeout(t);loadThree(urls.slice(1),cb)};
+  var t=setTimeout(next,7000);
+  s.onload=function(){if(done)return;done=true;clearTimeout(t);cb()};
+  s.onerror=next;s.src=urls[0];document.head.appendChild(s);
+}
+function museum(){
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t)};
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const touch=matchMedia('(pointer:coarse)').matches;
+document.documentElement.classList.add('locked');
+/* language: English or Chinese, remembered per visitor */
+const zhDefault=()=>(navigator.language||'').toLowerCase().startsWith('zh')?'zh':'en';
+let LANG;try{LANG=localStorage.getItem('pe-lang')||zhDefault()}catch(e){LANG=zhDefault()}
+let CUR=null;const CANVASES=[];
+const T_=(en,zh)=>{if(CUR)CUR._i18n=true;return LANG==='zh'?zh:en};
+const R_=v=>Array.isArray(v)?T_(v[0],v[1]):v;
+
+/* =========================================================
+   GUILLOCHE (loader + banknote)
+   ========================================================= */
+function guilloche(ctx,cx,cy,R,cols,frac,lw){
+  ctx.lineWidth=lw;
+  [[7.3,.95],[11.1,.74],[5.7,.52]].forEach(([k,a],i)=>{
+    ctx.strokeStyle=cols[i];ctx.beginPath();
+    const big=R*a,small=big/k,d=small*1.6,end=Math.PI*80*frac;
+    for(let t=0;t<=end;t+=0.012){const x=(big-small)*Math.cos(t)+d*Math.cos((big-small)/small*t),y=(big-small)*Math.sin(t)-d*Math.sin((big-small)/small*t);t===0?ctx.moveTo(cx+x,cy+y):ctx.lineTo(cx+x,cy+y)}
+    ctx.stroke();
+  });
+}
+
+/* loader: a ticket printer that feeds the ticket out while the 3D world builds */
+let loadAnim=reduce?1:0,built=false,glOK=true;const loadStart=performance.now();
+const tk=$('#ticketEl'),led=$('#prLed');
+$('#tkDate').textContent=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).toUpperCase();
+(function loop(){
+  if(loadAnim<1){loadAnim=Math.min(1,(performance.now()-loadStart)/2800)}
+  const prog=Math.min(loadAnim,built?1:.9),q=Math.floor(prog*40)/40; // line-by-line feed
+  tk.style.transform=`translateY(${(q*100-100).toFixed(2)}%)`;
+  const pct=Math.floor(prog*100);
+  $('#loadCount').textContent=(pct<100?T_('Printing your ticket · ','正在打印门票 · '):T_('Ticket ready · ','门票已就绪 · '))+String(pct).padStart(3,'0')+'%';
+  if(loadAnim>=1&&built){led.classList.add('done');$('#enter').classList.add('ready');return}
+  requestAnimationFrame(loop);
+})();
+
+/* =========================================================
+   ARTWORKS (SVG → canvas)
+   ========================================================= */
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const ARTS=[
+  function launch(){let s='<rect width="400" height="500" fill="#1D0F26"/>';
+    for(let i=25;i<500;i+=25){s+=`<line x1="0" y1="${i}" x2="400" y2="${i}" stroke="#7CD3E8" stroke-width=".5" opacity=".08"/>`;if(i<400)s+=`<line x1="${i}" y1="0" x2="${i}" y2="500" stroke="#7CD3E8" stroke-width=".5" opacity=".08"/>`}
+    s+='<circle cx="205" cy="185" r="118" fill="none" stroke="#C39445" stroke-width="2" opacity=".28"/><path d="M160 290 Q205 250 250 290" fill="none" stroke="#C39445" stroke-width="2" opacity=".28"/>';
+    [[165,318,80],[172,334,66],[180,350,50]].forEach(([x,y,w])=>{s+=`<rect x="${x}" y="${y}" width="${w}" height="9" rx="4" fill="#C39445" opacity=".28"/>`});
+    [[60,60],[120,110],[330,250],[70,200],[360,330],[300,40],[150,40]].forEach(([x,y])=>{s+=`<circle cx="${x}" cy="${y}" r="1.8" fill="#F6F3F9" opacity=".8"/>`});
+    s+='<path d="M175 425 V470 H218" fill="none" stroke="#E6C27F" stroke-width="2" opacity=".8"/><circle cx="218" cy="470" r="4" fill="#E6C27F"/>';
+    s+='<path d="M262 320 H300 V362" fill="none" stroke="#E6C27F" stroke-width="2" opacity=".8"/><circle cx="300" cy="362" r="4" fill="#E6C27F"/>';
+    s+='<path d="M262 320 H222 V282" fill="none" stroke="#7CD3E8" stroke-width="2" opacity=".7"/><circle cx="222" cy="282" r="4" fill="#7CD3E8"/>';
+    s+='<path d="M322 150 H372 V196" fill="none" stroke="#7CD3E8" stroke-width="2" opacity=".7"/><circle cx="372" cy="196" r="4" fill="#7CD3E8"/>';
+    s+='<path d="M40 440 Q120 438 175 425 Q235 405 262 320 Q290 220 322 150 Q336 108 348 82" fill="none" stroke="#7CD3E8" stroke-width="5" stroke-linecap="round"/>';
+    [[40,440,'IDEA',-2,-16],[175,425,'BUILD',-22,-18],[262,320,'LEAD',-58,6],[322,150,'IMPACT',-78,6]].forEach(([x,y,t,dx,dy])=>{s+=`<circle cx="${x}" cy="${y}" r="7" fill="#1D0F26" stroke="#E6C27F" stroke-width="3"/><text x="${x+dx}" y="${y+dy}" font-family="monospace" font-size="14" letter-spacing="2" fill="#F6F3F9">${t}</text>`});
+    s+='<g transform="translate(352 70) rotate(25)"><path d="M-4 17 Q0 38 4 17 Z" fill="#E0559A"/><path d="M0 -26 C9 -14 9 6 6 16 L-6 16 C-9 6 -9 -14 0 -26 Z" fill="#E6C27F"/><circle cx="0" cy="-6" r="4" fill="#1D0F26"/><path d="M-6 6 L-14 20 L-6 16 Z M6 6 L14 20 L6 16 Z" fill="#C39445"/></g>';
+    return s+'<text x="40" y="482" font-family="monospace" font-size="14" letter-spacing="3" fill="#E6C27F">0 → 1</text>'},
+  function money(){let s='<rect width="400" height="500" fill="#2A1636"/>';
+    for(let r=40;r<260;r+=14) s+=`<circle cx="200" cy="170" r="${r}" fill="none" stroke="#C39445" stroke-width=".7" opacity="${(.55-r/700).toFixed(2)}"/>`;
+    for(let i=0;i<10;i++){const h=16*Math.pow(1.34,i),x=48+i*31,y=440-h;s+=`<rect x="${x}" y="${y}" width="22" height="${h}" fill="${i%2?'#C39445':'#E6C27F'}"/><ellipse cx="${x+11}" cy="${y}" rx="11" ry="3.5" fill="#F3DDAA"/>`}
+    s+='<path d="M60 400 Q200 360 300 170 L332 92" fill="none" stroke="#7CD3E8" stroke-width="3" stroke-dasharray="7 6"/><path d="M332 92 l-14 8 m14 -8 l2 16" stroke="#7CD3E8" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    return s+'<line x1="36" y1="440" x2="364" y2="440" stroke="#E6C27F" stroke-width="1.5"/><text x="40" y="474" font-family="monospace" font-size="13" letter-spacing="2" fill="#E6C27F">SMALL WINS, COMPOUNDED</text>'},
+  function art(){return '<rect width="400" height="500" fill="#E7DDEB"/><circle cx="150" cy="190" r="112" fill="#5B2A6E"/><rect x="190" y="230" width="160" height="200" fill="#C39445" transform="rotate(-8 270 330)"/><circle cx="306" cy="118" r="42" fill="#1F6F6A"/><path d="M40 430 Q 200 300 360 440" fill="none" stroke="#24152E" stroke-width="3"/><polygon points="70,90 120,40 130,110" fill="#24152E"/><circle cx="150" cy="190" r="34" fill="#E7DDEB"/><rect x="40" y="452" width="90" height="10" fill="#B23A48"/>'},
+  function travel(){let s='<rect width="400" height="500" fill="#DCE7EC"/>';
+    for(let y=60;y<500;y+=50) s+=`<line x1="0" y1="${y}" x2="400" y2="${y}" stroke="#9DB7C4" stroke-width=".8"/>`;
+    for(let x=50;x<400;x+=60) s+=`<line x1="${x}" y1="0" x2="${x}" y2="500" stroke="#9DB7C4" stroke-width=".8"/>`;
+    return s+'<path d="M250 40 q50 30 40 90 q-10 40 30 70 q40 30 10 80 l-60 0 q-20 -60 -50 -80 q-30 -40 0 -110 z" fill="#C9D6CF"/><path d="M40 400 q40 -20 90 -6 q30 10 70 -4 l10 24 q-60 18 -110 10 q-40 -6 -60 -4 z" fill="#C9D6CF"/><path d="M90 400 Q 120 160 300 120" fill="none" stroke="#5B2A6E" stroke-width="2.5" stroke-dasharray="7 7"/><circle cx="90" cy="400" r="9" fill="#5B2A6E"/><circle cx="300" cy="120" r="9" fill="#C39445"/><circle cx="300" cy="120" r="18" fill="none" stroke="#C39445" stroke-width="1.5"/><g transform="translate(172 214) rotate(-48)"><path d="M0 -14 L5 4 L16 10 L16 14 L4 10 L3 20 L8 24 L8 27 L0 25 L-8 27 L-8 24 L-3 20 L-4 10 L-16 14 L-16 10 L-5 4 Z" fill="#24152E"/></g><text x="62" y="438" font-family="monospace" font-size="14" letter-spacing="2" fill="#24152E">INDONESIA</text><text x="268" y="96" font-family="serif" font-size="20" fill="#24152E">SHANGHAI</text>'},
+  function reading(){let s='<rect width="400" height="500" fill="#ECE4F1"/>';const r=rng(4);let y=460;const cols=['#5B2A6E','#1F6F6A','#C39445','#24152E','#B23A48','#8E6AA3','#3A1F48'];
+    for(let i=0;i<11;i++){const h=24+r()*16,w=200+r()*130,x=200-w/2+(r()-.5)*40;y-=h;s+=`<rect x="${x}" y="${y}" width="${w}" height="${h-2}" fill="${cols[i%7]}"/><rect x="${x+14}" y="${y+h/2-3}" width="${w*.32}" height="4" fill="#ECE4F1" opacity=".75"/><rect x="${x+w-26}" y="${y}" width="5" height="${h-2}" fill="#E6C27F" opacity=".8"/>`}
+    return s+'<line x1="40" y1="461" x2="360" y2="461" stroke="#24152E" stroke-width="2"/><path d="M278 60 v70 l12 -10 l12 10 v-70 z" fill="#B23A48"/>'},
+  function debate(){return '<rect width="400" height="500" fill="#1F1A2A"/><path d="M190 70 A 130 130 0 0 0 190 330 Z" fill="#5B2A6E"/><path d="M210 170 A 130 130 0 0 1 210 430 Z" fill="#1F6F6A"/><line x1="200" y1="40" x2="200" y2="460" stroke="#E6C27F" stroke-width="2"/><path d="M120 200 h50 l-12 -10 M170 200 l-12 10" fill="none" stroke="#E6C27F" stroke-width="2.5" stroke-linecap="round"/><path d="M280 300 h-50 l12 -10 M230 300 l12 10" fill="none" stroke="#E6C27F" stroke-width="2.5" stroke-linecap="round"/><text x="40" y="470" font-family="monospace" font-size="13" letter-spacing="2" fill="#C79BD8">PRO</text><text x="320" y="470" font-family="monospace" font-size="13" letter-spacing="2" fill="#7CD3E8">CON</text>'},
+  function baking(){let s='<rect width="400" height="500" fill="#F4E8D6"/><defs><clipPath id="lc"><path d="M50 410 L50 230 Q50 110 200 110 Q350 110 350 230 L350 410 Z"/></clipPath></defs><g clip-path="url(#lc)">';
+    for(let i=0;i<22;i++){const y=104+i*14;s+=`<path d="M40 ${y} Q 120 ${y-8} 200 ${y} T 360 ${y} V ${y+16} H 40 Z" fill="${i%2?'#E2BC7E':'#F6E3BF'}"/>`}
+    return s+'</g><path d="M50 410 L50 230 Q50 110 200 110 Q350 110 350 230 L350 410" fill="none" stroke="#9E6A2A" stroke-width="10" stroke-linejoin="round"/><line x1="30" y1="416" x2="370" y2="416" stroke="#24152E" stroke-width="2"/><text x="44" y="456" font-family="monospace" font-size="13" letter-spacing="2" fill="#5E4E6B">27 LAYERS · 3 FOLDS</text>'},
+  function maze(){
+    const W=10,H=13,cs=32,ox=40,oy=42,r=rng(9),seen=Array.from({length:H},()=>Array(W).fill(false)),open=new Set(),k=(a,b,c,d)=>a+','+b+'|'+c+','+d,D=[[1,0],[-1,0],[0,1],[0,-1]];
+    const st=[[0,0]];seen[0][0]=true;
+    while(st.length){const [x,y]=st[st.length-1];const n=D.map(([dx,dy])=>[x+dx,y+dy]).filter(([a,b])=>a>=0&&b>=0&&a<W&&b<H&&!seen[b][a]);if(!n.length){st.pop();continue}const [nx,ny]=n[Math.floor(r()*n.length)];open.add(k(x,y,nx,ny));open.add(k(nx,ny,x,y));seen[ny][nx]=true;st.push([nx,ny])}
+    const prev={},q=[[0,0]],vis=new Set(['0,0']);
+    while(q.length){const [x,y]=q.shift();if(x===W-1&&y===H-1)break;for(const [dx,dy] of D){const a=x+dx,b=y+dy;if(open.has(k(x,y,a,b))&&!vis.has(a+','+b)){vis.add(a+','+b);prev[a+','+b]=[x,y];q.push([a,b])}}}
+    const path=[];let c=[W-1,H-1];while(c){path.unshift(c);c=prev[c[0]+','+c[1]]}
+    let s='<rect width="400" height="500" fill="#F2EFF5"/>';
+    s+=`<polyline points="${path.map(([x,y])=>(ox+x*cs+cs/2)+','+(oy+y*cs+cs/2)).join(' ')}" fill="none" stroke="#C39445" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>`;
+    let w='';for(let y=0;y<H;y++)for(let x=0;x<W;x++){const px=ox+x*cs,py=oy+y*cs;if(y===0&&x!==0)w+=`M${px} ${py}h${cs}`;if(x===0)w+=`M${px} ${py}v${cs}`;if(!(x===W-1&&y===H-1)){if(!open.has(k(x,y,x+1,y)))w+=`M${px+cs} ${py}v${cs}`;if(!open.has(k(x,y,x,y+1)))w+=`M${px} ${py+cs}h${cs}`}else w+=`M${px} ${py+cs}h${cs}`}
+    return s+`<path d="${w}" fill="none" stroke="#5B2A6E" stroke-width="3" stroke-linecap="square"/><circle cx="${ox+cs/2}" cy="${oy+cs/2}" r="7" fill="#24152E"/>`}
+];
+const PORTRAIT='<rect width="240" height="300" fill="#2A1636"/><circle cx="120" cy="120" r="96" fill="none" stroke="#C39445" stroke-width="1" opacity=".55"/><circle cx="120" cy="120" r="78" fill="none" stroke="#C39445" stroke-width="1" opacity=".3"/><path d="M120 54c-24 0-40 18-40 42 0 14 5 25 13 33-4 2-6 6-6 10 0 4 2 7 5 9-29 9-50 33-54 63h164c-4-30-25-54-54-63 3-2 5-5 5-9 0-4-2-8-6-10 8-8 13-19 13-33 0-24-16-42-40-42z" fill="#5B2A6E"/><path d="M80 96c0-26 18-46 42-46 22 0 40 16 40 40-10-14-26-20-44-18-14 2-26 10-38 24z" fill="#3A1F48"/><path d="M58 211l62 18 62-18" fill="none" stroke="#E6C27F" stroke-width="2"/><path d="M104 229l16 22 16-22" fill="#C39445"/>';
+function svgCanvas(inner,vw,vh,w,h){
+  return new Promise(res=>{
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+    const img=new Image();
+    img.onload=()=>{x.drawImage(img,0,0,w,h);res(c)};
+    img.onerror=()=>{x.fillStyle='#3A1F48';x.fillRect(0,0,w,h);res(c)};
+    img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vw} ${vh}" width="${w}" height="${h}">${inner}</svg>`);
+  });
+}
+
+/* =========================================================
+   CANVAS TEXT HELPERS
+   ========================================================= */
+const F={disp:'"Bodoni Moda", Georgia, serif',body:'Manrope, system-ui, sans-serif',mono:'"IBM Plex Mono", Menlo, monospace',cjk:'"Noto Serif SC","Songti SC","STSong",serif'};
+function cnv(w,h,fn){const c=document.createElement('canvas');c.width=w;c.height=h;c._fn=fn;c._tex=[];const prev=CUR;CUR=c;fn(c.getContext('2d'),w,h);CUR=prev;CANVASES.push(c);return c}
+function relangCanvases(){CANVASES.forEach(c=>{if(!c._i18n)return;c.width=c.width;const prev=CUR;CUR=c;c._fn(c.getContext('2d'),c.width,c.height);CUR=prev;c._tex.forEach(t=>{t.needsUpdate=true})})}
+function spaced(x,text,px,py,sp){let cx=px;for(const ch of text){x.fillText(ch,cx,py);cx+=x.measureText(ch).width+sp}}
+function spacedC(x,text,mid,py,sp){const a=x.textAlign;x.textAlign='left';let w=0;for(const ch of text)w+=x.measureText(ch).width+sp;spaced(x,text,mid-(w-sp)/2,py,sp);x.textAlign=a}
+function wrap(x,text,px,py,maxW,lh){const words=text.split(' ');let line='',y=py;for(const w of words){const t=line?line+' '+w:w;if(x.measureText(t).width>maxW&&line){x.fillText(line,px,y);line=w;y+=lh}else line=t}if(line)x.fillText(line,px,y);return y}
+
+function noteFront(){return cnv(2048,1024,(x,w,h)=>{
+  x.fillStyle='#EDE6F2';x.fillRect(0,0,w,h);
+  // fine background hatch
+  x.strokeStyle='rgba(91,42,110,.06)';x.lineWidth=1;for(let i=-h;i<w;i+=10){x.beginPath();x.moveTo(i,0);x.lineTo(i+h,h);x.stroke()}
+  x.globalAlpha=.5;guilloche(x,w*.82,h*.5,h*.6,['#5B2A6E','#1F6F6A','#C39445'],1,1.3);x.globalAlpha=1;
+  x.strokeStyle='rgba(31,111,106,.28)';x.lineWidth=1.4;
+  for(let j=0;j<12;j++){x.beginPath();for(let px=0;px<=w;px+=4){const py=h*.86+Math.sin(px/60+j*.45)*16+Math.sin(px/18+j)*3-j*3;px===0?x.moveTo(px,py):x.lineTo(px,py)}x.stroke()}
+  x.strokeStyle='rgba(91,42,110,.45)';x.lineWidth=3;x.strokeRect(40,40,w-80,h-80);
+  x.setLineDash([10,8]);x.strokeStyle='rgba(195,148,69,.7)';x.lineWidth=2;x.strokeRect(58,58,w-116,h-116);x.setLineDash([]);
+  x.fillStyle='#5B2A6E';x.font=`500 30px ${F.mono}`;spaced(x,T_('SHANGHAI · ENGINEER · BUILDER','上海 · 工程师 · 创造者'),120,140,6);
+  x.fillStyle='#A8782A';x.textAlign='left';spaced(x,'PE 2024 SJTU 09',w-560,140,9);
+  x.fillStyle='#24152E';x.font=`500 230px ${F.disp}`;x.fillText('Patricia',110,420);
+  x.fillStyle='#5B2A6E';x.font=`italic 400 230px ${F.disp}`;x.fillText('Eileen',110,640);
+  x.fillStyle='#5E4E6B';x.font=`400 66px ${F.cjk}`;spaced(x,'吴莉惠',120,760,36);
+  x.fillStyle='#5B2A6E';x.font=`700 560px ${F.disp}`;x.textAlign='right';x.fillText('9',w-150,760);x.textAlign='left';
+  x.strokeStyle='rgba(91,42,110,.35)';x.lineWidth=2;x.beginPath();x.moveTo(120,870);x.lineTo(w-120,870);x.stroke();
+  x.fillStyle='#5E4E6B';x.font=`400 28px ${F.mono}`;x.fillText(T_('NINE INTERESTS · ONE PERSON','九种热爱 · 一个人'),120,930);
+  x.textAlign='right';x.fillText(T_('LEGAL TENDER AT ALL GOOD TEAMS','优秀团队通用货币'),w-120,930);x.textAlign='left';
+  // seal
+  x.save();x.translate(w*.6+40,700);x.rotate(-.14);x.strokeStyle='#C39445';x.lineWidth=5;x.beginPath();x.arc(0,0,80,0,Math.PI*2);x.stroke();x.lineWidth=2;x.beginPath();x.arc(0,0,66,0,Math.PI*2);x.stroke();
+  x.fillStyle='#C39445';x.font=`700 80px ${F.cjk}`;x.textAlign='center';x.textBaseline='middle';x.fillText('惠',0,4);x.restore();
+})}
+function noteBack(stamp){return cnv(2048,1024,(x,w,h)=>{
+  x.fillStyle='#F6F3F9';x.fillRect(0,0,w,h);
+  x.strokeStyle='rgba(91,42,110,.05)';x.lineWidth=2;for(let i=-h;i<w;i+=18){x.beginPath();x.moveTo(i,h);x.lineTo(i+h,0);x.stroke()}
+  const sw=w*.22,sx=w-sw;
+  x.fillStyle='#5B2A6E';x.fillRect(sx,0,sw,h);
+  x.setLineDash([16,12]);x.strokeStyle='rgba(91,42,110,.5)';x.lineWidth=4;x.beginPath();x.moveTo(sx-6,0);x.lineTo(sx-6,h);x.stroke();x.setLineDash([]);
+  x.fillStyle='#5B2A6E';x.font=`500 30px ${F.mono}`;spaced(x,'PATRICIA EILEEN · 吴莉惠 · SHANGHAI',110,140,5);
+  x.fillStyle='#5B2A6E';x.font=`700 290px ${F.disp}`;x.fillText(T_('Admit One','入场券'),100,520);
+  x.fillStyle='#24152E';x.font=`italic 400 76px ${F.disp}`;x.fillText(T_('Valid for one full visit, all wings','全馆通用 · 限参观一次'),110,640);
+  x.fillStyle='#5E4E6B';x.font=`500 28px ${F.mono}`;spaced(x,T_('GALLERY  LEADERSHIP  TECH WING  WORKSHOP  CAREER TOWER','东展厅   领导力展厅   科技馆   工作坊   职业大厦'),110,900,4);
+  x.save();x.translate(sx+sw/2,h/2);x.fillStyle='#E6C27F';x.font=`700 260px ${F.disp}`;x.textAlign='center';x.textBaseline='middle';x.fillText('1',0,40);
+  x.rotate(-Math.PI/2);x.font=`500 30px ${F.mono}`;x.fillText('No. PE·2024·SJTU·09',0,-150);x.restore();
+  if(stamp){x.save();x.translate(w*.6,250);x.rotate(-.16);x.strokeStyle='#B23A48';x.fillStyle='#B23A48';x.lineWidth=10;x.strokeRect(-230,-90,460,180);x.lineWidth=3;x.strokeRect(-214,-74,428,148);
+    x.font=`600 64px ${F.mono}`;x.textAlign='center';x.textBaseline='middle';x.fillText(T_('ADMITTED','已入场'),0,-18);
+    x.font=`500 34px ${F.mono}`;x.fillText(new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).toUpperCase(),0,40);x.restore()}
+})}
+
+/* =========================================================
+   THREE SETUP
+   ========================================================= */
+let renderer;
+try{
+  if(!window.THREE) throw new Error('three missing');
+  renderer=new THREE.WebGLRenderer({canvas:$('#gl'),antialias:true,powerPreference:'high-performance'});
+}catch(e){glOK=false}
+
+if(!glOK){
+  document.documentElement.classList.add('flat');
+  built=true;
+  $('#loadNote').textContent='The 3D tour couldn’t load on this connection or browser, so here is the printed guide instead. Try again later or on another network for the full tour.';$('#loadNote').dataset.zh='3D 导览无法在当前网络或浏览器中加载，以下为图文导览。请稍后或换个网络再试，体验完整导览。';
+  $('#enterBtn').textContent='Open the guide';$('#enterBtn').dataset.zh='打开导览';
+}
+
+const T=window.THREE;
+let scene,camera,world={};
+if(glOK){
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,touch?1.5:1.75));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputEncoding=T.sRGBEncoding;
+renderer.toneMapping=T.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+scene=new T.Scene();
+scene.background=new T.Color('#1D0F26');
+scene.fog=new T.Fog('#1D0F26',6,30);
+camera=new T.PerspectiveCamera(50,innerWidth/innerHeight,0.05,900);
+camera.position.set(0,1.6,4.4);
+const maxAniso=renderer.capabilities.getMaxAnisotropy();
+function tex(c,rep){const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.anisotropy=maxAniso;if(rep){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(rep[0],rep[1])}if(c._tex)c._tex.push(t);return t}
+const std=(color,o={})=>new T.MeshStandardMaterial(Object.assign({color,roughness:.85,metalness:0},o));
+const basic=(color,o={})=>new T.MeshBasicMaterial(Object.assign({color},o));
+function box(w,h,d,mat,x,y,z,parent){const m=new T.Mesh(new T.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);(parent||scene).add(m);return m}
+function plane(w,h,mat,x,y,z,ry,parent){const m=new T.Mesh(new T.PlaneGeometry(w,h),mat);m.position.set(x,y,z);if(ry)m.rotation.y=ry;(parent||scene).add(m);return m}
+
+/* lights */
+const amb=new T.AmbientLight('#ffffff',.18);scene.add(amb);
+const hemi=new T.HemisphereLight('#FFF4E6','#2A1636',.2);scene.add(hemi);
+const key=new T.DirectionalLight('#FFF1DC',.4);key.position.set(3,6,7);scene.add(key);
+world.lights={amb,hemi,key};
+function pl(color,int,dist,x,y,z){const l=new T.PointLight(color,int,dist,2);l.position.set(x,y,z);scene.add(l);return l}
+
+world.build=async function(){
+  world.buildLang=LANG;
+  await Promise.race([Promise.all([document.fonts.load(`500 100px ${F.disp}`),document.fonts.load(`italic 400 100px ${F.disp}`),document.fonts.load(`700 100px ${F.disp}`),document.fonts.load(`500 20px ${F.mono}`),document.fonts.load(`600 20px ${F.body}`),document.fonts.load('600 40px Caveat')]),new Promise(r=>setTimeout(r,2500))]).catch(()=>{});
+
+  /* ---------- ticket counter ---------- */
+  plane(40,16,std('#170B1E',{roughness:1}),0,0,-1).rotation.x=-Math.PI/2;
+  box(5,.75,.8,std('#3A1F48',{roughness:.6}),0,.375,1.15);
+  box(5.06,.04,.86,std('#C39445',{metalness:.75,roughness:.3}),0,.77,1.15);
+  pl('#FFD9A0',1.1,9,1.6,3,3.2);
+
+  const note=new T.Group();note.position.set(0,1.62,0);scene.add(note);
+  const frontTex=tex(noteFront()),backTex=tex(noteBack(false));
+  const edge=std('#D9CDE3',{roughness:.6});
+  const nmesh=new T.Mesh(new T.BoxGeometry(3.2,1.6,.012),[edge,edge,edge,edge,std('#ffffff',{map:frontTex,roughness:.55}),std('#ffffff',{map:backTex,roughness:.6})]);
+  note.add(nmesh);
+  const holo=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:{value:0},uTilt:{value:new T.Vector2()}},
+    vertexShader:'varying vec2 vUv;varying vec3 vN;varying vec3 vV;void main(){vUv=uv;vec4 wp=modelMatrix*vec4(position,1.);vN=normalize(mat3(modelMatrix)*normal);vV=normalize(cameraPosition-wp.xyz);gl_Position=projectionMatrix*viewMatrix*wp;}',
+    fragmentShader:'uniform float uTime;uniform vec2 uTilt;varying vec2 vUv;varying vec3 vN;varying vec3 vV;vec3 pal(float t){return .55+.45*cos(6.2831*(vec3(0.,.33,.67)+t));}void main(){float f=dot(normalize(vN),normalize(vV));float t=f*2.2+vUv.y*1.4+uTilt.x*1.1+uTilt.y*.7+uTime*.04;vec3 c=mix(pal(t),vec3(1.),.3);float l=.5+.5*sin(vUv.y*260.+vUv.x*30.);c*=.86+.14*l;float e=smoothstep(0.,.12,vUv.x)*smoothstep(1.,.88,vUv.x);gl_FragColor=vec4(c,.92*e);}'});
+  const strip=new T.Mesh(new T.PlaneGeometry(.16,1.6),holo);strip.position.set(.42,0,.0075);note.add(strip);
+  const strip2=new T.Mesh(new T.PlaneGeometry(.34,.34),holo);strip2.position.set(-1.25,-.52,.0075);strip2.visible=false;note.add(strip2);
+  world.note=note;world.holo=holo;world.setStamp=()=>{const t=tex(noteBack(true));nmesh.material[5].map=t;nmesh.material[5].needsUpdate=true};
+
+  /* ---------- facade ---------- */
+  const stone=std('#2A1636',{roughness:.9}),gold=std('#C39445',{metalness:.7,roughness:.32}),marble=std('#E4DDEA',{roughness:.5});
+  box(9,7,.6,stone,-7.5,3.5,-8);box(9,7,.6,stone,7.5,3.5,-8);box(6,1.5,.6,stone,0,6.25,-8);
+  box(24,.08,.66,gold,0,5.5,-8);box(24,.08,.66,gold,0,.9,-8);
+  [-3.3,3.3].forEach(cx=>{const col=new T.Mesh(new T.CylinderGeometry(.3,.36,5.4,28),marble);col.position.set(cx,2.7,-7.35);scene.add(col);box(.95,.22,.95,marble,cx,5.5,-7.35);box(.95,.18,.95,marble,cx,.09,-7.35)});
+  for(let i=0;i<3;i++)box(8-i*.6,.15,.45,marble,0,.075+i*.15,-6.3-i*.45);
+  const sign=cnv(2048,300,(x,w,h)=>{x.fillStyle='#2A1636';x.fillRect(0,0,w,h);x.strokeStyle='#C39445';x.lineWidth=6;x.strokeRect(14,14,w-28,h-28);x.fillStyle='#E6C27F';x.font=`500 130px ${F.disp}`;x.textAlign='center';x.textBaseline='middle';x.fillText('PATRICIA EILEEN',w/2,h/2+8)});
+  plane(5.8,.85,basic('#ffffff',{map:tex(sign),toneMapped:false}),0,6.25,-7.68);
+  const banner=(lines,cjk)=>cnv(400,1100,(x,w,h)=>{x.fillStyle='#5B2A6E';x.fillRect(0,0,w,h);x.fillStyle='#C39445';x.fillRect(0,0,w,18);x.beginPath();x.moveTo(0,h);x.lineTo(w/2,h-70);x.lineTo(w,h);x.fillStyle='#1D0F26';x.fill();
+    x.fillStyle='#E6C27F';x.textAlign='center';if(cjk){x.font=`400 150px ${F.cjk}`;['吴','莉','惠'].forEach((c,i)=>x.fillText(c,w/2,260+i*200))}else{x.font=`500 30px ${F.mono}`;x.fillText(R_(lines[0]),w/2,170);x.font=`italic 400 96px ${F.disp}`;x.fillText(R_(lines[1]),w/2,360);x.fillText(R_(lines[2]),w/2,470);x.font=`500 26px ${F.mono}`;x.fillText(R_(lines[3]),w/2,620)}});
+  plane(1.6,4.4,std('#ffffff',{map:tex(banner([['NOW SHOWING','正在展出'],['Nine','九种'],['loves','热爱'],['ONE PERSON','一个人']])),roughness:.9}),-7.5,3.1,-7.68);
+  plane(1.6,4.4,std('#ffffff',{map:tex(banner(null,true)),roughness:.9}),7.5,3.1,-7.68);
+  pl('#FFD9A0',1.5,14,0,4.6,-4.2);
+
+  /* ---------- gallery corridor z -8 … -68 ---------- */
+  const planks=cnv(512,512,(x,w,h)=>{for(let r=0;r<8;r++){const rr=rng(r+3);x.fillStyle=['#3B2433','#432A3A','#36202F','#3F2736'][r%4];x.fillRect(0,r*64,w,64);let px=-rr()*200;while(px<w){x.fillStyle='rgba(0,0,0,.35)';x.fillRect(px,r*64,2,64);px+=180+rr()*160}x.fillStyle='rgba(0,0,0,.45)';x.fillRect(0,r*64+62,w,2)}});
+  const floor=plane(8,60,std('#ffffff',{map:tex(planks,[2,14]),roughness:.55}),0,.002,-38);floor.rotation.x=-Math.PI/2;
+  const ceil=plane(8,60,std('#E1DBE8',{roughness:1}),0,5.5,-38);ceil.rotation.x=Math.PI/2;
+  const wallM=std('#E8E3EE',{roughness:.95});
+  plane(60,5.5,wallM,-4,2.75,-38,Math.PI/2);plane(60,5.5,wallM,4,2.75,-38,-Math.PI/2);
+  const wain=std('#4A2A5A',{roughness:.8});
+  box(.06,1,60,wain,-3.97,.5,-38);box(.06,1,60,wain,3.97,.5,-38);box(.1,.05,60,gold,-3.95,1.02,-38);box(.1,.05,60,gold,3.95,1.02,-38);
+  for(let z=-12;z>-68;z-=7.5)box(.5,.04,4,basic('#FFF6E8'),0,5.47,z);
+
+  const frameZ=[-13,-19.5,-26,-32.5,-39,-45.5,-52,-58.5],sides=[-1,1,-1,1,-1,1,-1,1];
+  const titles=[['Zero to One','从零到一'],['Compound Interest','复利'],['Study in Plum and Gold','梅紫与金的习作'],['Indonesia → Shanghai','印度尼西亚 → 上海'],['Marginalia','页边批注'],['Rebuttal','反驳'],['Laminated Dough','千层酥皮'],['Solved','已解决']];
+  const arts=await Promise.all(ARTS.map(f=>svgCanvas(f(),400,500,800,1000)));
+  world.frames=[];
+  arts.forEach((c,i)=>{
+    const s=sides[i],g=new T.Group();g.position.set(s*3.93,1.95,frameZ[i]);g.rotation.y=s>0?-Math.PI/2:Math.PI/2;scene.add(g);
+    box(2.1,2.6,.12,std('#3A1F48',{roughness:.5}),0,0,.06,g);
+    plane(1.96,2.46,gold,0,0,.125,0,g);
+    plane(1.82,2.32,std('#F6F3F9',{roughness:.9}),0,0,.13,0,g);
+    plane(1.5,1.875,std('#ffffff',{map:tex(c),roughness:.7}),0,0,.135,0,g);
+    box(.8,.06,.16,gold,0,1.5,.2,g);
+    plane(.7,.03,basic('#FFF2D6'),0,1.465,.29,0,g).rotation.x=Math.PI/2;
+    const pc=cnv(600,360,(x,w,h)=>{x.fillStyle='#F6F3F9';x.fillRect(0,0,w,h);x.fillStyle='#A8782A';x.font=`500 24px ${F.mono}`;x.fillText(T_('CAT. NO. 0','展品 0')+(i+1),40,70);x.fillStyle='#24152E';x.font=`italic 500 54px ${F.disp}`;wrap(x,R_(titles[i]),40,150,520,60);x.fillStyle='#5E4E6B';x.font=`500 24px ${F.body}`;x.fillText('Patricia Eileen',40,310)});
+    plane(.48,.29,std('#ffffff',{map:tex(pc),roughness:.9}),1.42,-.55,.01,0,g);
+    pl('#FFE6C0',1.0,5,s*2.6,3.2,frameZ[i]);
+    world.frames.push(g);
+  });
+
+  /* ---------- leadership hall x -8…8, z -68…-80 ---------- */
+  const velvetM=std('#3A1F48',{roughness:.95});
+  const hf=plane(16,12,std('#ffffff',{map:tex(planks,[4,3]),color:'#8A6E8C',roughness:.6}),0,.003,-74);hf.rotation.x=-Math.PI/2;
+  const hc=plane(16,12,std('#24122E',{roughness:1}),0,7,-74);hc.rotation.x=Math.PI/2;
+  plane(16,7,velvetM,0,3.5,-80);
+  plane(12,7,velvetM,-8,3.5,-74,Math.PI/2);
+  plane(4,7,velvetM,-6,3.5,-68,Math.PI);plane(4,7,velvetM,6,3.5,-68,Math.PI);plane(8,1.5,velvetM,0,6.25,-68,Math.PI);
+  plane(4,7,velvetM,8,3.5,-70,-Math.PI/2);plane(4,7,velvetM,8,3.5,-78,-Math.PI/2);plane(4,2.5,velvetM,8,5.75,-74,-Math.PI/2);
+  box(16,.1,.12,gold,0,6.6,-79.94);box(.12,.1,12,gold,-7.94,6.6,-74);
+  box(16,.6,.06,std('#2A1636'),0,.3,-79.96);box(.06,.6,12,std('#2A1636'),-7.96,.3,-74);
+  // portrait
+  const pg=new T.Group();pg.position.set(0,2.75,-79.9);scene.add(pg);
+  box(2.7,3.3,.16,std('#2A1636',{roughness:.5}),0,0,.08,pg);
+  plane(2.5,3.1,gold,0,0,.165,0,pg);
+  const port=await svgCanvas(PORTRAIT,240,300,720,900);
+  const pctx=port.getContext('2d');pctx.fillStyle='#E6C27F';pctx.font=`500 34px ${F.mono}`;pctx.textAlign='center';pctx.fillText('E N T J',360,850);
+  plane(2.2,2.75,std('#ffffff',{map:tex(port),roughness:.7}),0,0,.17,0,pg);
+  box(1,.07,.18,gold,0,1.85,.2,pg);
+  pl('#FFE0B0',1.4,7,0,4.6,-77);
+  // velvet rope
+  [-1.6,1.6].forEach(px=>{const post=new T.Mesh(new T.CylinderGeometry(.035,.05,1,16),gold);post.position.set(px,.5,-78.1);scene.add(post);const ball=new T.Mesh(new T.SphereGeometry(.06,16,12),gold);ball.position.set(px,1.03,-78.1);scene.add(ball)});
+  const rope=new T.Mesh(new T.TubeGeometry(new T.QuadraticBezierCurve3(new T.Vector3(-1.6,.98,-78.1),new T.Vector3(0,.55,-78.1),new T.Vector3(1.6,.98,-78.1)),40,.028,8),std('#8E1F2E',{roughness:.7}));scene.add(rope);
+  // plaques
+  const plaqueTex=(yr,title,lines)=>cnv(800,500,(x,w,h)=>{const g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,'#E2BC76');g.addColorStop(.5,'#C39445');g.addColorStop(1,'#9E7230');x.fillStyle=g;x.fillRect(0,0,w,h);
+    x.strokeStyle='rgba(60,35,10,.55)';x.lineWidth=4;x.strokeRect(24,24,w-48,h-48);
+    [[44,44],[w-44,44],[44,h-44],[w-44,h-44]].forEach(([a,b])=>{x.beginPath();x.arc(a,b,9,0,7);x.fillStyle='#7A5422';x.fill()});
+    x.fillStyle='#4A3214';x.font=`500 30px ${F.mono}`;x.fillText(R_(yr),70,110);
+    x.fillStyle='#24150A';x.font=`600 66px ${F.disp}`;let y=wrap(x,R_(title),70,200,660,70);
+    x.fillStyle='#3A2810';x.font=`500 30px ${F.body}`;wrap(x,R_(lines),70,y+64,660,40)});
+  const plq=(c,x,y,z,ry)=>{const m=new T.Mesh(new T.BoxGeometry(1.6,1,.05),[gold,gold,gold,gold,std('#ffffff',{map:tex(c),metalness:.35,roughness:.4}),gold]);m.position.set(x,y,z);m.rotation.y=ry||0;scene.add(m)};
+  plq(plaqueTex(['JUL 2026 — PRESENT','2026年7月 — 至今'],['President','主席'],['PERMIT Shanghai · 9 departments · 50+ members','PERMIT Shanghai · 9 个部门 · 50 余名成员']),-4.7,2.6,-79.95);
+  plq(plaqueTex(['JUL 2025 — JUN 2026','2025年7月 — 2026年6月'],['Vice President','副会长'],['PERMIT Shanghai · 4 departments · 40+ members','PERMIT Shanghai · 4 个部门 · 40 余名成员']),-2.6,2.6,-79.95);
+  plq(plaqueTex(['APR — JUL 2025','2025年4月 — 7月'],['Team Lead, AAC Keyboard','团队负责人 · AAC 键盘'],['5-person team · 20+ autistic children helped','5 人团队 · 帮助 20 余名自闭症儿童']),2.6,2.6,-79.95);
+  plq(plaqueTex(['SEP 2026 — PRESENT','2026年9月 — 至今'],['Team Lead, Huayou','团队负责人 · 华友'],['E-cigarette disassembly and battery recovery','电子烟拆解与电池回收']),4.7,2.6,-79.95);
+  plq(plaqueTex(['MAY — JUN 2025','2025年5月 — 6月'],['Team Lead, Mars Rover','团队负责人 · 火星车'],['Autonomous rover · under 1 kg · carries 10+ kg','自主火星车 · 自重不足 1 公斤 · 载重 10 公斤以上']),-7.95,2.45,-72.6,Math.PI/2);
+  plq(plaqueTex(['SPOKEN DAILY','日常使用'],['Three Languages','三种语言'],['English · Bahasa Indonesia · 中文 HSK 5','英语 · 印尼语 · 中文 HSK 5']),-7.95,2.45,-75.4,Math.PI/2);
+  pl('#FFD9A0',.9,16,0,5.6,-71.5);pl('#FFD9A0',.6,8,-5.5,4,-74);
+  // tech door
+  const glow=basic('#7CD3E8',{toneMapped:false});
+  box(.08,4.5,.08,glow,7.97,2.25,-72);box(.08,4.5,.08,glow,7.97,2.25,-76);box(.08,.08,4.08,glow,7.97,4.5,-74);
+  const ds=cnv(1024,200,(x,w,h)=>{x.fillStyle='#1D0F26';x.fillRect(0,0,w,h);x.fillStyle='#7CD3E8';x.font=`500 72px ${F.mono}`;x.textAlign='center';x.textBaseline='middle';spacedC(x,T_('TECH WING →','科技馆 →'),w/2,h/2,10)});
+  plane(2.6,.5,basic('#ffffff',{map:tex(ds),toneMapped:false}),7.94,5.3,-74,-Math.PI/2);
+  pl('#7CD3E8',.8,7,6.5,2.4,-74);
+
+  /* ---------- tech wing x 8…52: a dark data hall ---------- */
+  const linT=h=>new T.Color(h).convertSRGBToLinear();
+  // circuit-board floor
+  const pcb=cnv(1024,1024,(x,w,h)=>{x.fillStyle='#03070E';x.fillRect(0,0,w,h);const r=rng(404);
+    x.strokeStyle='rgba(124,211,232,.05)';x.lineWidth=1;for(let i=0;i<=w;i+=32){x.beginPath();x.moveTo(i,0);x.lineTo(i,h);x.stroke();x.beginPath();x.moveTo(0,i);x.lineTo(w,i);x.stroke()}
+    const dirs=[[1,0],[0,1],[-1,0],[0,-1]];
+    for(let k=0;k<80;k++){let px=Math.round(r()*32)*32,py=Math.round(r()*32)*32;const gold=r()<.18;x.strokeStyle=gold?'rgba(230,194,127,.6)':`rgba(124,211,232,${(.25+r()*.5).toFixed(2)})`;x.lineWidth=r()<.3?4:2;x.lineJoin='round';x.beginPath();x.moveTo(px,py);
+      for(let s=0;s<5;s++){const d=Math.floor(r()*4),L=(2+Math.floor(r()*6))*32;if(r()<.35){px+=(dirs[d][0]+dirs[(d+1)%4][0])*16;py+=(dirs[d][1]+dirs[(d+1)%4][1])*16;x.lineTo(px,py)}px+=dirs[d][0]*L;py+=dirs[d][1]*L;x.lineTo(px,py)}
+      x.stroke();x.fillStyle=x.strokeStyle;x.beginPath();x.arc(px,py,5,0,7);x.fill()}
+    for(let k=0;k<9;k++){const cw=64+Math.floor(r()*4)*32,ch=64+Math.floor(r()*3)*32,cx=Math.round(r()*28)*32,cy=Math.round(r()*28)*32;x.fillStyle='#0A1322';x.fillRect(cx,cy,cw,ch);x.strokeStyle='rgba(124,211,232,.55)';x.lineWidth=2;x.strokeRect(cx,cy,cw,ch);
+      x.fillStyle='rgba(124,211,232,.6)';for(let p=8;p<cw-4;p+=12){x.fillRect(cx+p,cy-8,4,8);x.fillRect(cx+p,cy+ch,4,8)}for(let p=8;p<ch-4;p+=12){x.fillRect(cx-8,cy+p,8,4);x.fillRect(cx+cw,cy+p,8,4)}}
+    x.strokeStyle='rgba(124,211,232,.35)';x.lineWidth=2;for(let k=0;k<160;k++){x.beginPath();x.arc(Math.round(r()*32)*32,Math.round(r()*32)*32,4,0,7);x.stroke()}});
+  const tf=plane(48,32,basic(linT('#ffffff'),{map:tex(pcb,[4,2.7]),toneMapped:false}),30,-.002,-74);tf.rotation.x=-Math.PI/2;
+  // server-rack walls, with blinking lights
+  const rackWall=cnv(512,1024,(x,w,h)=>{x.fillStyle='#03060C';x.fillRect(0,0,w,h);
+    [0,256].forEach(ox=>{x.fillStyle='#0A0F1B';x.fillRect(ox+10,40,236,h-60);x.fillStyle='#0E1526';x.fillRect(ox+10,40,236,28);x.fillStyle='rgba(124,211,232,.45)';x.fillRect(ox+20,50,60,6);
+      for(let u=0;u<26;u++){const y=80+u*35;x.fillStyle=u%5===4?'#121A2E':'#0F1626';x.fillRect(ox+18,y,220,30);x.fillStyle='#1B2540';for(let v=0;v<14;v++)x.fillRect(ox+90+v*10,y+10,5,11);x.fillStyle='#22304D';x.fillRect(ox+24,y+12,26,6)}
+      x.fillStyle='rgba(124,211,232,.18)';x.fillRect(ox+10,40,3,h-60);x.fillRect(ox+243,40,3,h-60)})});
+  const rwT=tex(rackWall,[21.5,1]),rwT2=tex(rackWall,[12,1]);
+  plane(43,7,basic(linT('#ffffff'),{map:rwT,toneMapped:false}),30,3.5,-86,0);
+  plane(43,7,basic(linT('#ffffff'),{map:rwT,toneMapped:false}),30,3.5,-62,Math.PI);
+  const rwT3=tex(rackWall,[5,1]),rwT4=tex(rackWall,[2,.36]);rwT4.offset.y=.64;
+  plane(10,7,basic(linT('#ffffff'),{map:rwT3,toneMapped:false}),52,3.5,-81,-Math.PI/2);plane(10,7,basic(linT('#ffffff'),{map:rwT3,toneMapped:false}),52,3.5,-67,-Math.PI/2);
+  plane(4,2.5,basic(linT('#ffffff'),{map:rwT4,toneMapped:false}),52,5.75,-74,-Math.PI/2);
+  world.techLeds=[0,1].map(set=>{const n=520,g=new T.BufferGeometry(),pp=new Float32Array(n*3),cc=new Float32Array(n*3),r=rng(900+set),cols=[new T.Color('#7FE0A8'),new T.Color('#7CD3E8'),new T.Color('#E6C27F')];
+    for(let i=0;i<n;i++){const wall=i%3,rk=Math.floor(r()*(wall<2?43:24)),u=Math.floor(r()*26),y=7-(80+u*35+15)/1024*7,o=.18+r()*.06;
+      if(wall===0){pp[i*3]=8.5+rk+o;pp[i*3+1]=y;pp[i*3+2]=-85.97}else if(wall===1){pp[i*3]=8.5+rk+o;pp[i*3+1]=y;pp[i*3+2]=-62.03}else{const zz=-62-rk-o;pp[i*3]=51.97;pp[i*3+1]=(zz>-76.3&&zz<-71.7)?4.8+(u%6)*.36:y;pp[i*3+2]=zz}
+      const c=cols[Math.floor(r()*3)];cc[i*3]=c.r;cc[i*3+1]=c.g;cc[i*3+2]=c.b}
+    g.setAttribute('position',new T.BufferAttribute(pp,3));g.setAttribute('color',new T.BufferAttribute(cc,3));
+    const pts=new T.Points(g,new T.PointsMaterial({size:.07,vertexColors:true,toneMapped:false}));scene.add(pts);return pts});
+  // ceiling with light strips
+  const tcl=plane(44,24,basic(linT('#04070D')),30,7,-74,0);tcl.rotation.x=Math.PI/2;
+  [-66,-70,-78,-82].forEach(z=>box(42,.04,.1,basic(linT('#7CD3E8'),{toneMapped:false}),30,6.97,z));
+  // falling code in front of the racks
+  const rainC=(seed)=>{const c=cnv(256,1024,(x,w,h)=>{const r=rng(seed);x.font=`500 22px ${F.mono}`;for(let col=0;col<9;col++){const cx=8+col*28;let y=r()*h;for(let k=0;k<40;k++){y=(y+26)%h;const a=Math.max(0,1-k/40);x.fillStyle=`rgba(124,211,232,${(a*.75).toFixed(2)})`;x.fillText(r()<.5?(r()<.5?'0':'1'):'0123456789ABCDEF'[Math.floor(r()*16)],cx,y)}}});const t=tex(c);t.wrapS=t.wrapT=T.RepeatWrapping;return t};
+  world.rain=[rainC(11),rainC(12),rainC(13)];
+  [[13,-85.85,0],[25.5,-85.85,1],[41,-85.85,2],[17,-62.15,1],[33,-62.15,2],[45,-62.15,0]].forEach(([x,z,k])=>plane(1.8,6.2,new T.MeshBasicMaterial({map:world.rain[k],transparent:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false}),x,3.4,z,z>-70?Math.PI:0));
+  // a network of light overhead
+  {const n=70,r=rng(31),P=[];for(let i=0;i<n;i++)P.push(new T.Vector3(10+r()*39,4.6+r()*2,-84+r()*20));
+    const seg=[];for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)if(P[i].distanceTo(P[j])<5.2)seg.push(P[i],P[j]);
+    const g=new T.Group();g.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(seg),new T.LineBasicMaterial({color:linT('#7CD3E8'),transparent:true,opacity:.22,depthWrite:false})));
+    g.add(new T.Points(new T.BufferGeometry().setFromPoints(P),new T.PointsMaterial({color:linT('#BFEFFF'),size:.1,toneMapped:false})));scene.add(g);world.plexus=g}
+  pl('#7CD3E8',1.2,30,22,5,-74);pl('#7CD3E8',1.0,30,44,5,-74);
+  const lineM=new T.LineBasicMaterial({color:'#7CD3E8',transparent:true,opacity:.9});
+  const goldLine=new T.LineBasicMaterial({color:'#E6C27F'});
+  world.spin=[];world.rings=[];
+  const label=(txt)=>{const c=cnv(640,120,(x,w,h)=>{x.fillStyle='#7CD3E8';x.font=`500 46px ${F.mono}`;x.textAlign='center';x.textBaseline='middle';x.fillText(txt,w/2,h/2)});const s=new T.Sprite(new T.SpriteMaterial({map:tex(c),transparent:true,toneMapped:false}));s.scale.set(1.8,.34,1);return s};
+  function makeCase(x,z,kind,txt){
+    const g=new T.Group();g.position.set(x,0,z);scene.add(g);
+    const ped=box(1.1,1,1.1,std('#0E2A40',{roughness:.5}),0,.5,0,g);
+    const pe=new T.LineSegments(new T.EdgesGeometry(ped.geometry),lineM);pe.position.copy(ped.position);g.add(pe);
+    const glass=box(1.2,1.4,1.2,new T.MeshStandardMaterial({color:'#7CD3E8',transparent:true,opacity:.07,roughness:.05,depthWrite:false}),0,1.7,0,g);
+    const ge=new T.LineSegments(new T.EdgesGeometry(glass.geometry),lineM);ge.position.copy(glass.position);g.add(ge);
+    const ring=new T.Mesh(new T.RingGeometry(.9,.95,64),basic('#7CD3E8',{transparent:true,opacity:.5,side:T.DoubleSide,toneMapped:false}));ring.rotation.x=-Math.PI/2;ring.position.y=.01;g.add(ring);world.rings.push(ring);
+    const o=new T.Group();o.position.y=1.7;g.add(o);
+    if(kind===0){const ico=new T.IcosahedronGeometry(.38,1);o.add(new T.LineSegments(new T.WireframeGeometry(ico),lineM));o.add(new T.Points(ico,new T.PointsMaterial({color:'#E6C27F',size:.05})));o.add(new T.Mesh(new T.SphereGeometry(.12,20,16),basic('#E6C27F',{toneMapped:false})))}
+    if(kind===1){o.add(new T.LineSegments(new T.WireframeGeometry(new T.SphereGeometry(.4,18,12)),new T.LineBasicMaterial({color:'#7CD3E8',transparent:true,opacity:.55})));
+      const a=new T.Vector3().setFromSphericalCoords(.4,1.9,.6),b=new T.Vector3().setFromSphericalCoords(.4,1.0,1.9),m=a.clone().add(b).normalize().multiplyScalar(.62);
+      o.add(new T.Line(new T.BufferGeometry().setFromPoints(new T.QuadraticBezierCurve3(a,m,b).getPoints(40)),goldLine));
+      [a,b].forEach(v=>{const d=new T.Mesh(new T.SphereGeometry(.035,12,8),basic('#E6C27F'));d.position.copy(v);o.add(d)})}
+    if(kind===2){ // mars rover
+      const ch=new T.BoxGeometry(.56,.07,.32);const che=new T.LineSegments(new T.EdgesGeometry(ch),lineM);o.add(che);
+      const tr=[];[[-.28,-.16],[.28,-.16],[-.28,.16],[.28,.16]].forEach(([x,z])=>{tr.push(new T.Vector3(x,.035,z),new T.Vector3(0,.2,z))});
+      o.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(tr),goldLine));
+      [-.24,0,.24].forEach(x=>[-.2,.2].forEach(z=>{const w=new T.Mesh(new T.TorusGeometry(.075,.022,8,24),basic('#E6C27F'));w.position.set(x,-.12,z);o.add(w)}));
+      const mast=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(.18,.04,0),new T.Vector3(.18,.36,0)]),lineM);o.add(mast);
+      const head=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(.14,.07,.1)),lineM);head.position.set(.18,.4,0);o.add(head);
+      o.scale.setScalar(1.15)}
+    if(kind===3){ // wordle
+      const cols=['#3A3A4C','#C9B458','#6AAA64'],r=rng(21);
+      for(let row=0;row<6;row++)for(let c=0;c<5;c++){const col=row===5?2:row===0?0:(r()<.25?2:r()<.45?1:0);
+        const t=new T.Mesh(new T.BoxGeometry(.1,.1,.03),basic(cols[col],{toneMapped:false}));t.position.set((c-2)*.125,(2.5-row)*.125,0);o.add(t);
+        const e=new T.LineSegments(new T.EdgesGeometry(t.geometry),lineM);e.position.copy(t.position);o.add(e)}}
+    if(kind===4){ // tank
+      const body=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(.5,.12,.3)),lineM);o.add(body);
+      [-.17,.17].forEach(z=>{const t=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(.58,.09,.08)),goldLine);t.position.set(0,-.09,z);o.add(t)});
+      const tur=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(.22,.1,.2)),lineM);tur.position.y=.11;o.add(tur);
+      const bar=new T.Mesh(new T.CylinderGeometry(.022,.022,.38,10),basic('#E6C27F'));bar.rotation.z=Math.PI/2;bar.position.set(.28,.12,0);o.add(bar);
+      const grid=new T.GridHelper(.9,6,'#7CD3E8','#1C4566');grid.position.y=-.15;o.add(grid);
+      o.scale.setScalar(1.2)}
+    world.spin.push(o);
+    const l=label(txt);l.position.set(0,2.75,0);g.add(l);
+    return g;
+  }
+  makeCase(20,-70.5,0,'TW-01 · COGNITIVE');makeCase(26,-77.5,1,'TW-02 · TRIPSYNC');makeCase(32,-70.5,3,'TW-03 · WORDLE');
+  makeCase(38,-77.5,4,'TW-04 · TANK WAR');
+  // data flow on floor
+  const flowPts=[];[[20,-70.5],[26,-77.5],[32,-70.5],[38,-77.5],[14,-80.4],[47.4,-74]].forEach(([x,z])=>{flowPts.push(new T.CatmullRomCurve3([new T.Vector3(8.2,.03,-74),new T.Vector3((8+x)/2,.03,-74),new T.Vector3(x,.03,z)]))});
+  flowPts.forEach(c=>scene.add(new T.Line(new T.BufferGeometry().setFromPoints(c.getPoints(40)),new T.LineBasicMaterial({color:'#1F6F8A',transparent:true,opacity:.7}))));
+  const fN=110,fGeo=new T.BufferGeometry(),fPos=new Float32Array(fN*3);fGeo.setAttribute('position',new T.BufferAttribute(fPos,3));
+  scene.add(new T.Points(fGeo,new T.PointsMaterial({color:'#7CD3E8',size:.07,transparent:true,opacity:.95,toneMapped:false})));
+  world.flow={curves:flowPts,geo:fGeo,pos:fPos,n:fN};
+  // TW-00: repository wall
+  const term=cnv(1600,1000,(x,w,h)=>{x.fillStyle='#06121E';x.fillRect(0,0,w,h);x.fillStyle='rgba(124,211,232,.08)';x.fillRect(0,0,w,70);
+    [0,1,2].forEach(i=>{x.beginPath();x.arc(46+i*34,35,10,0,7);x.fillStyle='#2F5A80';x.fill()});
+    x.fillStyle='#8FB0C8';x.font=`500 28px ${F.mono}`;x.fillText('exhibit TW-00 · github.com/tricoded',170,45);
+    const L=[['$ ','whoami','#7CD3E8'],['','patricia.eileen   # ECE @ SJTU · github @tricoded','#DCEBF6'],['',''],['$ ','ls ~/projects','#7CD3E8'],
+      ['','cognitiveapp/    AI scheduling assistant · 2026','#E6C27F'],['','tripsync/        group trip planner · 2026','#E6C27F'],
+      ['','wordle_player/   entropy solver in C · 2025','#E6C27F'],['','tank-battle/     terminal tank war in C++ · 2025','#E6C27F'],['',''],
+      ['$ ','skills','#7CD3E8'],['','lang   java python c/c++ sql js kotlin xml dart','#DCEBF6'],['','fw     spring firebase node.js react django flutter','#DCEBF6'],
+      ['','tools  git rest-apis postman swagger docker','#DCEBF6'],['','data   sql redis-insight','#DCEBF6'],['',''],['$ ','status','#7CD3E8'],['','open to backend internships ▌','#7FE0A8']];
+    x.font=`500 34px ${F.mono}`;L.forEach((l,i)=>{const y=130+i*50;if(l[0]){x.fillStyle='#7CD3E8';x.fillText(l[0],60,y)}x.fillStyle=l[2]||'#DCEBF6';x.fillText(l[1],l[0]?104:60,y)})});
+  const mon=new T.Group();mon.position.set(14,2.6,-81.6);scene.add(mon);
+  box(3.5,2.3,.14,std('#0E2A40',{roughness:.4}),0,0,-.08,mon);
+  plane(3.3,2.06,basic('#ffffff',{map:tex(term),toneMapped:false}),0,0,.001,0,mon);
+  const me=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(3.5,2.3,.14)),lineM);me.position.z=-.08;mon.add(me);
+  box(.12,1.4,.12,std('#0E2A40'),0,-1.85,-.1,mon);
+  const ml=label('TW-00 · GITHUB');ml.position.set(0,1.5,0);mon.add(ml);
+
+  /* ---------- elevator to the Career Tower (end of the Tech Wing) ---------- */
+  const eg=new T.Group();eg.position.set(76.6,0,-74);eg.rotation.y=-Math.PI/2;scene.add(eg); // local +z faces the visitor
+  const goldE=std('#C39445',{metalness:.7,roughness:.32});
+  box(5.2,5.6,.4,basic(new T.Color('#0A1424').convertSRGBToLinear()),0,2.8,-.25,eg);
+  const ee=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(5.2,5.6,.4)),lineM);ee.position.set(0,2.8,-.25);eg.add(ee);
+  plane(2.7,3.4,basic('#FFE6B8',{toneMapped:false}),0,1.7,-.04,0,eg);
+  const steelM=std('#B9B2C4',{metalness:.85,roughness:.3});
+  world.doors=[box(1.35,3.4,.04,steelM,-.675,1.7,0,eg),box(1.35,3.4,.04,steelM,.675,1.7,0,eg)];
+  box(.12,3.6,.14,goldE,-1.42,1.8,.02,eg);box(.12,3.6,.14,goldE,1.42,1.8,.02,eg);box(2.96,.14,.14,goldE,0,3.62,.02,eg);
+  const ind=cnv(1200,300,(x,w,h)=>{x.fillStyle='#06121E';x.fillRect(0,0,w,h);x.strokeStyle='#E6C27F';x.lineWidth=5;x.strokeRect(10,10,w-20,h-20);
+    x.fillStyle='#E6C27F';x.textBaseline='middle';x.font=`500 46px ${F.mono}`;spacedC(x,T_('▲  CAREER TOWER','▲  职业大厦'),w/2,105,8);
+    x.fillStyle='#DCEBF6';x.font=`500 32px ${F.mono}`;x.textAlign='center';x.fillText(T_('WORK EXPERIENCE · FLOORS 06 · 11 · 16','工作经历 · 06 · 11 · 16 层'),w/2,205)});
+  plane(2.9,.72,basic('#ffffff',{map:tex(ind),toneMapped:false}),0,4.3,-.03,0,eg);
+  pl('#FFE0B0',1.0,9,74,3.2,-74);
+
+  /* ---------- the Workshop: a hardware lab, x 52…77, z -82…-66 ---------- */
+  {const L=h=>new T.Color(h).convertSRGBToLinear(),WX=64.5,WZ=-74,BZ=-79.5,amber='#F2A93B';
+  world.exhibits=[];
+  // concrete floor
+  const conc=cnv(512,512,(x,w,h)=>{x.fillStyle='#5A5550';x.fillRect(0,0,w,h);const r=rng(71);for(let i=0;i<2600;i++){const g=80+Math.floor(r()*40);x.fillStyle=`rgba(${g},${g-4},${g-8},.35)`;x.fillRect(r()*w,r()*h,2+r()*3,2+r()*3)}
+    for(let i=0;i<7;i++){x.fillStyle='rgba(30,25,20,.14)';x.beginPath();x.ellipse(r()*w,r()*h,20+r()*50,10+r()*30,r()*3,0,7);x.fill()}x.strokeStyle='rgba(40,36,32,.5)';x.lineWidth=2;x.beginPath();x.moveTo(0,256);x.lineTo(w,256);x.moveTo(256,0);x.lineTo(256,h);x.stroke()});
+  const wf=plane(25,16,basic(L('#ffffff'),{map:tex(conc,[5,3.2])}),WX,.003,WZ,0);wf.rotation.x=-Math.PI/2;
+  const hz=tex(cnv(256,32,(x,w,h)=>{x.fillStyle='#E2B13C';x.fillRect(0,0,w,h);x.fillStyle='#1A1714';for(let i=-2;i<12;i++){x.beginPath();x.moveTo(i*28,h);x.lineTo(i*28+14,0);x.lineTo(i*28+28,0);x.lineTo(i*28+14,h);x.fill()}}),[6,1]);
+  const hzS=plane(4,.3,basic(L('#ffffff'),{map:hz}),52.4,.006,-74,0);hzS.rotation.x=-Math.PI/2;hzS.rotation.z=Math.PI/2;
+  [[64.5,-77.6,23],[64.5,-70.4,23]].forEach(([x,z,l])=>{const m=plane(l,.08,basic(L('#E2B13C')),x,.006,z,0);m.rotation.x=-Math.PI/2});
+  // walls: pegboard behind the benches, brick opposite and at the far end
+  const brick=(seed)=>tex(cnv(512,256,(x,w,h)=>{x.fillStyle='#2E211B';x.fillRect(0,0,w,h);const r=rng(seed);for(let row=0;row<8;row++)for(let c=-1;c<5;c++){const bx=c*128+(row%2?64:0)+3,by=row*32+3;const v=r();x.fillStyle=v<.3?'#6B3B2A':v<.6?'#7A4532':v<.85?'#5E3426':'#8A5038';x.fillRect(bx,by,122,26)}}),[6,1.5]);
+  plane(25,6,basic(L('#ffffff'),{map:brick(81)}),WX,3,-66,Math.PI);
+  plane(16,6,basic(L('#ffffff'),{map:brick(82)}),77,3,WZ,-Math.PI/2);
+  const peg=cnv(2048,512,(x,w,h)=>{x.fillStyle='#A47E52';x.fillRect(0,0,w,h);x.fillStyle='rgba(40,28,18,.55)';for(let yy=12;yy<h;yy+=22)for(let xx=12;xx<w;xx+=22){x.beginPath();x.arc(xx,yy,3.2,0,7);x.fill()}
+    const tool=(kind,cx,cy,s)=>{x.save();x.translate(cx,cy);x.scale(s,s);x.fillStyle='#2A2522';x.strokeStyle='#F2A93B';x.lineWidth=3;
+      if(kind===0){x.fillRect(-7,-60,14,95);x.beginPath();x.arc(0,-66,18,0,7);x.fill();x.beginPath();x.arc(0,42,14,0,7);x.fill()}
+      if(kind===1){x.fillRect(-4,-70,8,80);x.fillStyle='#B8352B';x.fillRect(-11,10,22,46)}
+      if(kind===2){x.rotate(-.12);x.fillRect(-5,-20,10,80);x.rotate(.24);x.fillRect(-5,-20,10,80);x.rotate(-.12);x.beginPath();x.ellipse(0,-34,16,22,0,0,7);x.fill()}
+      if(kind===3){x.fillRect(-5,-40,10,90);x.fillRect(-30,-52,60,20)}
+      if(kind===4){x.fillStyle='#E2B13C';x.fillRect(-26,-40,52,80);x.fillStyle='#1E1E22';x.fillRect(-18,-32,36,22);x.beginPath();x.arc(0,16,12,0,7);x.fill()}
+      x.restore()};
+    const r=rng(5);for(let i=0;i<26;i++)tool(i%5,60+i*76+r()*20,150+r()*60,.85+r()*.3);
+    x.fillStyle='#2A2522';x.fillRect(0,300,w,14);x.fillStyle='rgba(0,0,0,.18)';x.fillRect(0,314,w,10)});
+  plane(25,6,basic(L('#ffffff'),{map:tex(peg)}),WX,3,-82,0);
+  const wcl=plane(25,16,basic(L('#120D0A')),WX,6,WZ,0);wcl.rotation.x=Math.PI/2;
+  // parts-bin shelf on the pegboard
+  box(23,.05,.36,basic(L('#3A2A20')),WX,2.55,-81.8);
+  {const r=rng(17),cols=['#B8352B','#2E6FB8','#E2B13C','#3E7A55','#5A5A62'];for(let i=0;i<46;i++){const bx=53.4+i*.5;if((bx>57.4&&bx<60.6)||(bx>64.4&&bx<67.6)||(bx>71.4&&bx<74.6))continue;box(.36,.2+r()*.08,.3,basic(L(cols[i%5])),bx,2.69,-81.8)}}
+  // sign
+  const sgn=cnv(1200,220,(x,w,h)=>{x.fillStyle='#120A05';x.fillRect(0,0,w,h);x.strokeStyle=amber;x.lineWidth=6;x.strokeRect(12,12,w-24,h-24);x.fillStyle=amber;x.font=`italic 500 120px ${F.disp}`;x.textAlign='center';x.textBaseline='middle';x.fillText(T_('The Workshop','工作坊'),w/2,h/2+8)});
+  plane(4.4,.8,basic(L('#ffffff'),{map:tex(sgn),toneMapped:false}),WX,4.55,-81.9,0);
+  // benches, lamps and light cones
+  const top=basic(L('#9A6B3F')),leg=basic(L('#2E2E33'));
+  [59,66,73].forEach(bx=>{box(3.2,.08,1.2,top,bx,.92,BZ);[-1.5,1.5].forEach(lx=>[-.5,.5].forEach(lz=>box(.07,.88,.07,leg,bx+lx,.44,BZ+lz)));box(3.0,.04,1.0,leg,bx,.3,BZ);
+    const cord=new T.Mesh(new T.CylinderGeometry(.01,.01,2.7,6),basic(L('#111111')));cord.position.set(bx,4.65,BZ+.2);scene.add(cord);
+    const shade=new T.Mesh(new T.ConeGeometry(.42,.34,28,1,true),basic(L('#2F4A3A'),{side:T.DoubleSide}));shade.position.set(bx,3.2,BZ+.2);scene.add(shade);
+    const bulb=new T.Mesh(new T.SphereGeometry(.08,12,8),basic(L('#FFE3B0'),{toneMapped:false}));bulb.position.set(bx,3.04,BZ+.2);scene.add(bulb);
+    const beam=new T.Mesh(new T.ConeGeometry(1.25,2.1,28,1,true),new T.MeshBasicMaterial({color:L('#FFB866'),transparent:true,opacity:.07,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide,toneMapped:false}));beam.position.set(bx,1.98,BZ+.2);scene.add(beam);
+    pl('#FFB866',1.5,6,bx,2.85,BZ+.6)});
+  pl('#FFB866',.8,14,58,4.6,-71);pl('#FFB866',.6,14,71,4.6,-71);
+  // exploded-view label
+  const tag=(t)=>{const c=cnv(512,84,(x,w,h)=>{x.fillStyle='rgba(20,12,6,.88)';x.fillRect(0,0,w,h);x.fillStyle=amber;x.fillRect(0,0,6,h);x.fillStyle='#FFE9C7';x.font=`500 32px ${F.mono}`;x.textBaseline='middle';x.fillText(R_(t),22,h/2+2)});
+    const sp=new T.Sprite(new T.SpriteMaterial({map:tex(c),transparent:true,depthTest:false,toneMapped:false,opacity:0}));sp.scale.set(.4,.066,1);sp.renderOrder=10;return sp};
+  function exhibit(g,stop,list){const ex={stop,parts:[],labels:[]};list.forEach(([m,dir,label,lo])=>{g.add(m);ex.parts.push([m,m.position.clone(),new T.Vector3(...dir)]);
+      if(label){const t=tag(label);const o=lo||[0,.09,0];t.position.set(m.position.x+dir[0]+o[0],m.position.y+dir[1]+o[1],m.position.z+dir[2]+o[2]);g.add(t);ex.labels.push(t)}});world.exhibits.push(ex)}
+  const M=(geo,mat,x,y,z)=>{const m=new T.Mesh(geo,mat);m.position.set(x,y,z);return m};
+  // --- bench 01: Mars Rover ---
+  {const g=new T.Group();g.position.set(59,1.13,BZ);g.rotation.y=-.35;scene.add(g);
+    const goldL=new T.LineBasicMaterial({color:'#E6C27F'});
+    const fr=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(.72,.12,.4)),goldL);g.add(fr);
+    const br=[];[-.36,-.12,.12].forEach(x0=>{[.2,-.2].forEach(z=>{br.push(new T.Vector3(x0,-.06,z),new T.Vector3(x0+.24,.06,z),new T.Vector3(x0,.06,z),new T.Vector3(x0+.24,-.06,z))})});g.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(br),goldL));
+    g.add(M(new T.BoxGeometry(.68,.01,.36),basic(L('#2A2D36')),0,.055,0));
+    const ard=M(new T.BoxGeometry(.3,.02,.2),std('#1C6CA8',{roughness:.5}),0,.09,0);[[-.06,.02],[.07,-.04],[.08,.05]].forEach(([x,z])=>ard.add(M(new T.BoxGeometry(.06,.02,.04),basic(L('#111111')),x,.02,z)));ard.add(M(new T.BoxGeometry(.24,.02,.015),basic(L('#111111')),0,.02,.085));
+    const sen=M(new T.BoxGeometry(.06,.06,.16),std('#2B6BB5',{roughness:.5}),.4,.04,0);[-.04,.04].forEach(z=>{const e=M(new T.CylinderGeometry(.022,.022,.03,16),std('#C9CED8',{metalness:.6,roughness:.3}),.04,0,z);e.rotation.z=Math.PI/2;sen.add(e)});
+    const bat=M(new T.BoxGeometry(.2,.06,.12),std('#2E3A5C',{roughness:.6}),-.18,-.02,0);
+    const parts=[[ard,[0,.38,0],['ARDUINO CONTROLLER','ARDUINO 控制器'],[0,.06,0]],[sen,[.34,.16,0],['SENSORS','传感器']],[bat,[-.4,.04,0],['BATTERY','电池']]];
+    [[-.26,.2],[.26,.2],[-.26,-.2],[.26,-.2]].forEach(([x,z],i)=>{const mo=M(new T.CylinderGeometry(.04,.04,.12,14),std('#E2B13C',{roughness:.4}),x,-.07,z);mo.rotation.x=Math.PI/2;
+      const wh=M(new T.CylinderGeometry(.1,.1,.07,24),std('#1A1A1A',{roughness:.9}),x,-.07,z+(z>0?.12:-.12));wh.rotation.x=Math.PI/2;
+      parts.push([mo,[0,-.02,z>0?.22:-.22],i===0?['DC MOTORS','直流电机']:null,[0,.1,0]],[wh,[0,-.02,z>0?.48:-.48],null])});
+    exhibit(g,2145-260+0,parts);
+    const kg=tag(['UNDER 1 KG · CARRIES 10+ KG','自重 <1 KG · 载重 10+ KG']);kg.position.set(0,.8,0);g.add(kg);world.exhibits[world.exhibits.length-1].labels.push(kg);
+    const tf2=tag(['TRUSS FRAME · AUTOCAD','桁架结构 · AUTOCAD']);tf2.position.set(-.2,-.2,.3);g.add(tf2);world.exhibits[world.exhibits.length-1].labels.push(tf2);}
+  // --- bench 02: Huayou e-cigarette disassembly ---
+  {const g=new T.Group();g.position.set(66,1.12,BZ);g.rotation.y=-.3;scene.add(g);
+    const shellM=std('#8C8F99',{metalness:.6,roughness:.35});
+    const tH=M(new T.CylinderGeometry(.052,.052,.5,24,1,false,0,Math.PI),shellM,0,0,0);tH.rotation.z=Math.PI/2;
+    const bH=M(new T.CylinderGeometry(.052,.052,.5,24,1,false,Math.PI,Math.PI),shellM,0,0,0);bH.rotation.z=Math.PI/2;
+    const mp=M(new T.CylinderGeometry(.03,.04,.08,18),basic(L('#1E1E22')),.29,0,0);mp.rotation.z=Math.PI/2;
+    const pod=M(new T.CylinderGeometry(.044,.044,.12,18),new T.MeshBasicMaterial({color:L('#F2A93B'),transparent:true,opacity:.6}),.18,0,0);pod.rotation.z=Math.PI/2;
+    const coil=M(new T.TorusGeometry(.022,.007,8,24),std('#C77B3A',{metalness:.7,roughness:.3}),.1,0,0);coil.rotation.y=Math.PI/2;
+    const cell=M(new T.CylinderGeometry(.042,.042,.2,22),std('#3C7BD8',{roughness:.5}),-.04,0,0);cell.rotation.z=Math.PI/2;cell.add(M(new T.CylinderGeometry(.043,.043,.02,22),basic(L('#F6F3F9')),0,.06,0));
+    const pcb=M(new T.BoxGeometry(.08,.008,.05),std('#2E7D4F',{roughness:.6}),-.18,0,0);pcb.add(M(new T.BoxGeometry(.02,.008,.02),basic(L('#111111')),0,.008,0));
+    const cap=M(new T.CylinderGeometry(.052,.052,.03,22),shellM,-.26,0,0);cap.rotation.z=Math.PI/2;
+    exhibit(g,2195-260,[[tH,[0,.3,0],['SHELL','外壳'],[.12,.1,0]],[bH,[0,-.1,.12],null],[mp,[.42,0,0],null],[pod,[.3,.1,0],['POD','烟弹'],[.08,.06,0]],[coil,[.16,.22,0],['COIL','线圈'],[-.02,.06,0]],[cell,[-.04,.44,0],['LI-ION CELL → REUSE','锂电池 → 回收再利用'],[0,.1,0]],[pcb,[-.3,.18,0],['CONTROL PCB','控制电路板'],[-.06,-.12,0]],[cap,[-.48,0,0],null]]);
+    // the rig around it: sensor head, laser line and cutter
+    const head=M(new T.BoxGeometry(.16,.08,.12),std('#2C2E33',{roughness:.5}),0,.62,-.05);g.add(head);head.add(M(new T.BoxGeometry(.02,.62,.02),basic(L('#2C2E33')),0,.31,-.05));
+    const las=M(new T.PlaneGeometry(.006,.56),new T.MeshBasicMaterial({color:L('#FF4057'),transparent:true,opacity:.85,blending:T.AdditiveBlending,depthWrite:false,toneMapped:false}),0,.32,-.05);g.add(las);world.laser=las;
+    const cut=M(new T.CylinderGeometry(.13,.13,.01,40),std('#C9CED8',{metalness:.8,roughness:.25}),.06,.06,-.2);cut.rotation.x=Math.PI/2;g.add(cut);world.cutter2=cut;
+    const lb1=tag(['SENSOR','传感器']);lb1.position.set(.3,.68,-.05);g.add(lb1);const lb2=tag(['CUTTER','切割刀']);lb2.position.set(.36,-.06,-.24);g.add(lb2);world.exhibits[world.exhibits.length-1].labels.push(lb1,lb2);}
+  // --- bench 03: next build, under wraps ---
+  {const cl=new T.Mesh(new T.SphereGeometry(.5,24,16),std('#1C1424',{roughness:1}));cl.scale.set(1,.5,.75);cl.position.set(73,1.2,BZ);scene.add(cl);
+    const sc=cnv(512,340,(x,w,h)=>{x.fillStyle='#F6F1E6';x.fillRect(0,0,w,h);x.fillStyle='#B8352B';x.fillRect(0,0,w,14);x.fillStyle='#24152E';x.font=`500 26px ${F.mono}`;x.fillText(T_('BENCH 03','工作台 03'),30,70);x.font=`italic 500 64px ${F.disp}`;x.fillText(T_('Next build','下一个作品'),30,160);x.font=`500 26px ${F.mono}`;x.fillStyle='#5E4E6B';x.fillText(T_('UNDER WRAPS · COMING SOON','保密中 · 敬请期待'),30,240)});
+    const card=plane(.5,.33,basic(L('#ffffff'),{map:tex(sc)}),73.55,1.16,BZ+.5,-.15);card.rotation.x=-.25;}
+  // oscilloscope and other props
+  {const sx=57.9;box(.5,.3,.32,basic(L('#2B2D33')),sx,1.11,BZ-.15);
+    const sc=document.createElement('canvas');sc.width=256;sc.height=160;const st=new T.CanvasTexture(sc);st.encoding=T.sRGBEncoding;
+    plane(.3,.19,new T.MeshBasicMaterial({map:st,toneMapped:false}),sx-.06,1.12,BZ+.011,0);
+    [[.15,.06],[.15,-.04],[.2,.06],[.2,-.04]].forEach(([dx,dy])=>{const k=new T.Mesh(new T.CylinderGeometry(.015,.015,.02,12),basic(L('#C9CED8')));k.rotation.x=Math.PI/2;k.position.set(sx+dx-.06,1.12+dy,BZ+.02);scene.add(k)});
+    world.scope={c:sc,x:sc.getContext('2d'),t:st};}
+  box(.22,.08,.15,basic(L('#B8352B')),67.3,1.0,BZ-.25);{const ir=new T.Mesh(new T.CylinderGeometry(.012,.02,.24,10),basic(L('#2A2A2E')));ir.rotation.z=.9;ir.position.set(67.3,1.12,BZ-.25);scene.add(ir)}
+  {const sp=new T.Mesh(new T.TorusGeometry(.07,.035,10,24),basic(L('#B8352B')));sp.position.set(60.2,1.02,BZ-.2);sp.rotation.x=Math.PI/2;scene.add(sp)}
+  box(.7,.45,.35,basic(L('#B8352B')),75.6,.23,-80.9);[.1,.22,.34].forEach(y=>box(.66,.012,.36,basic(L('#5A1A14')),75.6,y,-80.9));
+  // doorway from the Tech Wing, framed in amber
+  const ab=basic(L(amber),{toneMapped:false});
+  box(.1,4.5,.1,ab,52,2.25,-76);box(.1,4.5,.1,ab,52,2.25,-72);box(.1,.1,4.1,ab,52,4.5,-74);
+  const ds2=cnv(1024,200,(x,w,h)=>{x.fillStyle='#120A05';x.fillRect(0,0,w,h);x.fillStyle=amber;x.font=`500 72px ${F.mono}`;x.textBaseline='middle';spacedC(x,T_('WORKSHOP →','工作坊 →'),w/2,h/2,10)});
+  plane(2.6,.5,basic(L('#ffffff'),{map:tex(ds2),toneMapped:false}),51.94,5.25,-74,-Math.PI/2);
+  pl('#FFB866',.9,8,50.5,2.6,-74);
+  }
+
+  /* ---------- Career Tower: a night scene of its own, reached through the elevator ---------- */
+  const TW=new T.Group();TW.visible=false;scene.add(TW);world.tower=TW;
+  const lin=h=>new T.Color(h).convertSRGBToLinear(); // plain colours are linear in this three.js version
+  const X0=200,Z0=-200,TH=60;
+  const goldB=basic(lin('#C39445')),goldBL=basic(lin('#E6C27F'),{toneMapped:false});
+  function uvScale(geo,w,h,d,tw,th){const uv=geo.attributes.uv,sp=[[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];for(let f=0;f<6;f++)for(let v=0;v<4;v++){const i=f*4+v;uv.setXY(i,uv.getX(i)*sp[f][0]/tw,uv.getY(i)*sp[f][1]/th)}uv.needsUpdate=true;return geo}
+  function winTex(seed,lit,base,warm){const t=tex(cnv(512,512,(x,w,h)=>{const r=rng(seed);x.fillStyle=base;x.fillRect(0,0,w,h);for(let fy=0;fy<16;fy++)for(let fx=0;fx<16;fx++){const on=r()<lit;x.fillStyle=on?(r()<.72?warm:'#BFD8FF'):`rgba(170,190,255,${(.04+r()*.06).toFixed(3)})`;x.fillRect(fx*32+5,fy*32+8,22,17)}}));t.wrapS=t.wrapT=T.RepeatWrapping;return t}
+  // sky, stars, moon
+  const dome=new T.Mesh(new T.SphereGeometry(560,32,16),new T.ShaderMaterial({side:T.BackSide,depthWrite:false,
+    vertexShader:'varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'varying vec3 vP;void main(){float h=normalize(vP).y;vec3 hor=vec3(.24,.17,.33),zen=vec3(.03,.05,.13);vec3 c=mix(hor,zen,smoothstep(-.02,.5,h));c+=vec3(.3,.14,.06)*pow(max(0.,1.-abs(h)*5.),3.)*.45;gl_FragColor=vec4(c,1.);}'}));
+  dome.position.set(X0,0,Z0);dome.renderOrder=-1;TW.add(dome);
+  const sn=650,sg=new T.BufferGeometry(),sP=new Float32Array(sn*3),r3=rng(66);
+  for(let i=0;i<sn;i++){const th=r3()*Math.PI*2,ph=Math.acos(.18+r3()*.82);sP[i*3]=X0+Math.sin(ph)*Math.cos(th)*520;sP[i*3+1]=Math.cos(ph)*520;sP[i*3+2]=Z0+Math.sin(ph)*Math.sin(th)*520}
+  sg.setAttribute('position',new T.BufferAttribute(sP,3));
+  TW.add(new T.Points(sg,new T.PointsMaterial({color:'#FFFFFF',size:1.6,sizeAttenuation:false,fog:false,transparent:true,opacity:.75,depthWrite:false})));
+  const moon=new T.Mesh(new T.SphereGeometry(12,24,16),basic(lin('#F4ECD8'),{fog:false,toneMapped:false}));moon.position.set(X0-140,190,Z0-430);TW.add(moon);
+  // ground and city lights
+  const gnd=plane(1100,1100,basic(lin('#060918')),X0,-.05,Z0,0,TW);gnd.rotation.x=-Math.PI/2;
+  const cn=3600,cg=new T.BufferGeometry(),cP=new Float32Array(cn*3),cC=new Float32Array(cn*3),r2=rng(55),c1=new T.Color('#FFD08A'),c2=new T.Color('#CFE2FF');
+  for(let i=0;i<cn;i++){let x=X0+(r2()-.5)*860,z=Z0+60-r2()*500;if(r2()<.7){if(r2()<.5)x=X0+Math.round((x-X0)/24)*24+12;else z=Z0+Math.round((z-Z0)/24)*24+12}
+    cP[i*3]=x;cP[i*3+1]=.3;cP[i*3+2]=z;const c=r2()<.65?c1:c2;cC[i*3]=c.r;cC[i*3+1]=c.g;cC[i*3+2]=c.b}
+  cg.setAttribute('position',new T.BufferAttribute(cP,3));cg.setAttribute('color',new T.BufferAttribute(cC,3));
+  TW.add(new T.Points(cg,new T.PointsMaterial({size:.9,vertexColors:true,toneMapped:false})));
+  // skyline
+  const skyT=[winTex(31,.28,'#0A1028','#FFD58A'),winTex(32,.18,'#0D0E24','#FFE7B5'),winTex(33,.4,'#101833','#9FD0FF')];
+  const sr=rng(77);
+  for(let i=0;i<190;i++){const ang=sr()*Math.PI*2,rad=34+Math.pow(sr(),.75)*250,x=X0+Math.cos(ang)*rad,z=Z0+Math.sin(ang)*rad;
+    const w=8+sr()*16,d=8+sr()*16,h=14+Math.pow(sr(),2)*125;
+    if(z>-150||(z>-205&&Math.abs(x-X0)<28))continue;
+    const m=new T.Mesh(uvScale(new T.BoxGeometry(w,h,d),w,h,d,32,48),basic(lin('#ffffff'),{map:skyT[i%3]}));m.position.set(x,h/2,z);TW.add(m);
+    if(h>95&&sr()<.6){const s=new T.Mesh(new T.CylinderGeometry(.15,.7,h*.22,8),goldB);s.position.set(x,h*1.11,z);TW.add(s)}}
+  const st=new T.Mesh(uvScale(new T.BoxGeometry(20,190,20),20,190,20,32,48),basic(lin('#ffffff'),{map:skyT[2]}));st.position.set(X0+72,95,Z0-120);TW.add(st);
+  const sts=new T.Mesh(new T.CylinderGeometry(.3,2.2,34,8),goldB);sts.position.set(X0+72,207,Z0-120);TW.add(sts);
+  // a pearl-style TV tower on the skyline
+  const pk=new T.Group();pk.position.set(X0-78,0,Z0-125);TW.add(pk);
+  const pinkM=basic(lin('#D0569A'),{toneMapped:false}),steelB=basic(lin('#6E6890'));
+  const pole=new T.Mesh(new T.CylinderGeometry(1.4,2.2,128,12),steelB);pole.position.y=64;pk.add(pole);
+  [0,1,2].forEach(k=>{const a=k*Math.PI*2/3,b=new T.Vector3(Math.cos(a)*15,0,Math.sin(a)*15),tp=new T.Vector3(0,36,0),leg=new T.Mesh(new T.CylinderGeometry(1.3,1.6,b.distanceTo(tp),10),steelB);
+    leg.position.copy(b.clone().add(tp).multiplyScalar(.5));leg.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),tp.clone().sub(b).normalize());pk.add(leg)});
+  [[36,10],[92,6.5],[118,2.8]].forEach(([y,r])=>{const s=new T.Mesh(new T.SphereGeometry(r,24,16),pinkM);s.position.y=y;pk.add(s)});
+  const ant=new T.Mesh(new T.CylinderGeometry(.3,.6,26,8),steelB);ant.position.y=140;pk.add(ant);
+  // the tower itself
+  // the tower is built in sections so floors 06, 11 and 16 can open into rooms
+  const towerMat=basic(lin('#ffffff'),{map:winTex(5,.3,'#0B1230','#FFD58A')});
+  [[0,18],[21,33],[36,48],[51,TH]].forEach(([a,b])=>{const h=b-a,m=new T.Mesh(uvScale(new T.BoxGeometry(16,h,16),16,h,16,11,16.5),towerMat);m.position.set(X0,(a+b)/2,Z0);TW.add(m)});
+  [[-8,-8],[8,-8],[-8,8],[8,8]].forEach(([dx,dz])=>box(.35,TH+.6,.35,goldB,X0+dx,TH/2,Z0+dz,TW));
+  box(16.6,.5,.5,goldB,X0,TH+.25,Z0+8,TW);box(16.6,.5,.5,goldB,X0,TH+.25,Z0-8,TW);box(.5,.5,16.6,goldB,X0-8,TH+.25,Z0,TW);box(.5,.5,16.6,goldB,X0+8,TH+.25,Z0,TW);
+  const roof=plane(16,16,basic(lin('#151027')),X0,TH+.03,Z0,0,TW);roof.rotation.x=-Math.PI/2;
+  box(16.4,.9,.2,basic(lin('#2A2140')),X0,TH+.45,Z0-8.1,TW);box(.2,.9,16.4,basic(lin('#2A2140')),X0-8.1,TH+.45,Z0,TW);box(.2,.9,16.4,basic(lin('#2A2140')),X0+8.1,TH+.45,Z0,TW);
+  const mast=new T.Mesh(new T.CylinderGeometry(.12,.25,16,8),basic(lin('#8C86A8')));mast.position.set(X0+6,TH+8,Z0-6);TW.add(mast);
+  world.beacon=new T.Mesh(new T.SphereGeometry(.35,12,8),basic(lin('#FF4057'),{toneMapped:false}));world.beacon.position.set(X0+6,TH+16.2,Z0-6);TW.add(world.beacon);
+  // elevator rails and the glass cab
+  const railM=basic(lin('#2E2A40'));box(.1,TH+2,.1,railM,X0-3.15,(TH+2)/2,-191.8,TW);box(.1,TH+2,.1,railM,X0+3.15,(TH+2)/2,-191.8,TW);
+  // open glass platform: railings on three sides, the building side stays open
+  const cab=new T.Group();cab.position.set(X0,0,-188.5);TW.add(cab);
+  box(6,.14,6.2,basic(lin('#1B1230')),0,-.07,0,cab);box(6.1,.04,.08,goldBL,0,.02,-3.08,cab);
+  const glassM=new T.MeshBasicMaterial({color:'#9FC8FF',transparent:true,opacity:.07,depthWrite:false,side:T.DoubleSide});
+  [-3,3].forEach(x=>{plane(6.2,1.05,glassM,x,.53,0,Math.PI/2,cab);box(.05,.05,6.2,goldBL,x,1.06,0,cab);[-3.05,0,3.05].forEach(z=>box(.06,1.06,.06,goldB,x,.53,z,cab))});
+  plane(6,1.05,glassM,0,.53,3.1,0,cab);box(6,.05,.05,goldBL,0,1.06,3.1,cab);
+  world.cab=cab;
+  // lit floors: the lobby directory and one floor per role
+  const office=tex(cnv(1024,160,(x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#E9C890');g.addColorStop(1,'#A86F35');x.fillStyle=g;x.fillRect(0,0,w,h);
+    x.fillStyle='rgba(40,22,14,.55)';for(let i=0;i<=16;i++)x.fillRect(i*64-3,0,6,h);
+    x.fillStyle='rgba(40,22,14,.5)';for(let i=0;i<12;i++){const px=30+i*84;x.fillRect(px,h-46,54,6);x.fillRect(px+8,h-40,5,40);x.fillRect(px+41,h-40,5,40)}}));
+  const signTex=(top,right,org,role)=>cnv(1600,900,(x,w,h)=>{x.fillStyle='#100C24';x.fillRect(0,0,w,h);x.strokeStyle='#C39445';x.lineWidth=8;x.strokeRect(24,24,w-48,h-48);x.lineWidth=2;x.strokeRect(46,46,w-92,h-92);
+    x.fillStyle='#E6C27F';x.font=`500 44px ${F.mono}`;spaced(x,top,110,175,10);x.textAlign='right';x.fillText(right,w-110,175);x.textAlign='left';
+    x.fillStyle='#CFC6DA';x.font=`600 54px ${F.body}`;x.fillText(org,110,320);
+    x.fillStyle='#F6F3F9';x.font=`italic 500 116px ${F.disp}`;wrap(x,role,110,490,w-220,126)});
+  const dirTex=cnv(1600,900,(x,w,h)=>{x.fillStyle='#100C24';x.fillRect(0,0,w,h);x.strokeStyle='#C39445';x.lineWidth=8;x.strokeRect(24,24,w-48,h-48);x.lineWidth=2;x.strokeRect(46,46,w-92,h-92);
+    x.fillStyle='#E6C27F';x.font=`500 44px ${F.mono}`;spaced(x,T_('LOBBY · DIRECTORY','大堂 · 指引'),110,175,10);
+    x.fillStyle='#F6F3F9';x.font=`italic 500 130px ${F.disp}`;x.fillText(T_('Career Tower','职业大厦'),110,330);
+    [['FL 16',T_('Calculus TA · SJTU','微积分助教 · 上海交大')],['FL 11',T_('Bank Mandiri · Backend Intern','曼底利银行 · 后端实习')],['FL 06',T_('General Chemistry TA · SJTU','普通化学助教 · 上海交大')],[T_('ROOF','天台'),T_('Gift shop & exit','纪念品店与出口')]].forEach(([a,b],i)=>{const y=470+i*96;
+      x.fillStyle='#E6C27F';x.font=`500 46px ${F.mono}`;x.fillText(a,110,y);x.fillStyle='#DCD3E8';x.font=`500 50px ${F.body}`;x.fillText(b,330,y)})});
+  function floorAt(slab,canvas,lift){
+    plane(15.4,2.7,basic(lin('#ffffff'),{map:office,toneMapped:false}),X0,slab+1.5,-191.97,0,TW);
+    box(16.4,.08,.4,goldB,X0,slab+.02,-191.9,TW);box(16.4,.08,.4,goldB,X0,slab+3,-191.9,TW);
+    plane(3.0,1.69,basic(lin('#ffffff'),{map:tex(canvas),toneMapped:false}),X0,slab+1.5+(lift||0),-191.9,0,TW);
+  }
+  floorAt(0,dirTex,.5);
+  /* ---------- themed rooms, one per role, built into the tower behind glass ---------- */
+  const HAND='"Caveat", "Segoe Print", "Comic Sans MS", cursive';
+  world.leds=[];
+  const glassW=new T.MeshBasicMaterial({color:lin('#DDEFFF'),transparent:true,opacity:.28,depthWrite:false});
+  const RZ=-197.5; // back wall of each room
+  function shell(slab,wallC,floorT,ceilC,lightC){
+    const inside=basic(lin(wallC));
+    plane(15.6,3,inside,X0,slab+1.5,RZ,0,TW);
+    const back=new T.Mesh(uvScale(new T.BoxGeometry(16,3,10.5),16,3,10.5,11,16.5),towerMat);back.position.set(X0,slab+1.5,(RZ-208)/2);TW.add(back);
+    [[-1,0],[1,1]].forEach(([s,k])=>{const mats=[towerMat,towerMat,towerMat,towerMat,towerMat,towerMat];mats[k===0?0:1]=inside;
+      const w=new T.Mesh(uvScale(new T.BoxGeometry(.3,3,5.5),.3,3,5.5,11,16.5),mats);w.position.set(X0+s*7.85,slab+1.5,(RZ-192)/2);TW.add(w)});
+    const f=plane(15.4,5.5,basic(lin('#ffffff'),{map:floorT}),X0,slab+.006,(RZ-192)/2,0,TW);f.rotation.x=-Math.PI/2;
+    const c=plane(15.4,5.5,basic(lin(ceilC)),X0,slab+2.994,(RZ-192)/2,0,TW);c.rotation.x=Math.PI/2;
+    [-4.5,0,4.5].forEach(x=>[-193.6,-196].forEach(z=>box(2.6,.03,.22,basic(lin(lightC),{toneMapped:false}),X0+x,slab+2.97,z,TW)));
+    plane(15.6,2.9,new T.MeshBasicMaterial({color:lin('#AFC8E8'),transparent:true,opacity:.06,depthWrite:false}),X0,slab+1.5,-191.985,0,TW);
+    box(16.4,.08,.4,goldB,X0,slab+.02,-191.9,TW);box(16.4,.08,.4,goldB,X0,slab+3,-191.9,TW);
+  }
+  function transom(slab,text){
+    const c=cnv(1800,130,(x,w,h)=>{x.fillStyle='rgba(10,8,24,.8)';x.fillRect(0,0,w,h);x.fillStyle='#E6C27F';x.font=`500 54px ${F.mono}`;x.textBaseline='middle';spacedC(x,R_(text),w/2,h/2+2,8)});
+    plane(3.0,.217,new T.MeshBasicMaterial({map:tex(c),transparent:true,toneMapped:false}),X0+.3,slab+2.78,-191.93,0,TW);
+  }
+  const tileT=(a,b,g)=>tex(cnv(256,256,(x,w,h)=>{x.fillStyle=g;x.fillRect(0,0,w,h);[[0,0,a],[128,0,b],[0,128,b],[128,128,a]].forEach(([px,py,c])=>{x.fillStyle=c;x.fillRect(px+3,py+3,122,122)})}),[8,3]);
+  function frameBoard(w,h,y,frameC,canvas,x0){const x=X0+(x0||0);box(w+.16,h+.16,.06,basic(lin(frameC)),x,y,RZ+.03,TW);plane(w,h,basic(lin('#ffffff'),{map:tex(canvas)}),x,y,RZ+.065,0,TW)}
+  function poster(w,h,x,y,canvas){plane(w,h,basic(lin('#ffffff'),{map:tex(canvas)}),X0+x,y,RZ+.02,0,TW)}
+
+  /* ----- FLOOR 06 · General Chemistry TA: a recitation lab ----- */
+  {const S=18;
+  shell(S,'#D7E3DB',tileT('#E9EDEA','#DCE2DE','#C5CCC7'),'#EEF2EE','#FFF7E6');
+  transom(S,['FLOOR 06 · GENERAL CHEMISTRY TA','06 层 · 普通化学助教']);
+  const chalk=cnv(2048,450,(x,w,h)=>{x.fillStyle='#22382E';x.fillRect(0,0,w,h);
+    for(let i=0;i<900;i++){x.fillStyle=`rgba(255,255,255,${Math.random()*.035})`;x.fillRect(Math.random()*w,Math.random()*h,Math.random()*60,2)}
+    const ch='rgba(242,246,240,.93)';x.fillStyle=ch;x.strokeStyle=ch;x.lineWidth=4;x.lineCap='round';
+    x.font=`500 40px ${HAND}`;x.fillText('Gen Chem · Recitation · Week 9',40,58);
+    x.font=`600 92px ${HAND}`;x.fillText('PV = nRT',60,170);
+    x.font=`600 66px ${HAND}`;x.fillText('2H₂ + O₂ → 2H₂O',60,265);x.fillText('ΔG = ΔH − TΔS',60,355);x.fillText('n = m / M',560,170);
+    // water molecule
+    const ox=930,oy=280;x.beginPath();x.arc(ox,oy,34,0,7);x.stroke();x.font=`600 44px ${HAND}`;x.fillText('O',ox-13,oy+15);
+    [[-1,1],[1,1]].forEach(([s])=>{const hx=ox+s*105,hy=oy+70;x.beginPath();x.moveTo(ox+s*26,oy+24);x.lineTo(hx-s*18,hy-16);x.stroke();x.beginPath();x.arc(hx,hy,24,0,7);x.stroke();x.fillText('H',hx-11,hy+14)});
+    x.fillText('104.5°',ox-48,oy+135);[[-20,-48],[20,-48]].forEach(([dx,dy])=>{x.beginPath();x.arc(ox+dx,oy+dy,5,0,7);x.fill()});
+    // benzene ring
+    const bx=1250,by=250,r=72;x.beginPath();for(let i=0;i<=6;i++){const a=Math.PI/6+i*Math.PI/3;i?x.lineTo(bx+r*Math.cos(a),by+r*Math.sin(a)):x.moveTo(bx+r*Math.cos(a),by+r*Math.sin(a))}x.stroke();x.beginPath();x.arc(bx,by,42,0,7);x.stroke();
+    x.font=`500 40px ${HAND}`;x.fillText('C₆H₆',bx-40,by+130);
+    // stoichiometry box
+    x.strokeRect(1440,120,540,190);x.font=`600 46px ${HAND}`;x.fillText('1 mol = 6.022 × 10²³',1462,190);x.fillText('M(H₂O) = 18.02 g/mol',1462,265);
+    x.fillStyle='#F7D96B';x.strokeStyle='#F7D96B';x.font=`600 48px ${HAND}`;x.fillText('Quiz 4 on Thursday!',1480,385);x.beginPath();x.ellipse(1690,370,250,46,0,0,7);x.stroke();
+    x.fillStyle='#9FD8F2';x.font=`500 38px ${HAND}`;x.fillText('office hrs Tue 4pm',1100,420)});
+  frameBoard(7.8,1.71,S+1.62,'#6B4A2E',chalk,-.15);
+  box(7.8,.05,.12,basic(lin('#6B4A2E')),X0-.15,S+.72,RZ+.1,TW);
+  const ptable=cnv(1024,600,(x,w,h)=>{x.fillStyle='#FBFAF6';x.fillRect(0,0,w,h);x.fillStyle='#24152E';x.font=`700 30px ${F.body}`;x.textAlign='center';x.fillText('PERIODIC TABLE OF THE ELEMENTS',w/2,46);
+    const cw=52,chh=56,ox=(w-18*cw)/2,oy=70,cat=(p,g)=>g===18?'#B9A7E6':g===1?'#F2A0A0':g===2?'#F6C38E':g>=3&&g<=12?'#F3E19A':g===17?'#9FD9C9':(p+g)%3===0?'#A9CFF0':'#C9E6A8';
+    const sym={'1,1':'H','1,18':'He','2,1':'Li','2,2':'Be','2,13':'B','2,14':'C','2,15':'N','2,16':'O','2,17':'F','2,18':'Ne','3,1':'Na','3,2':'Mg','3,13':'Al','3,14':'Si','3,15':'P','3,16':'S','3,17':'Cl','3,18':'Ar'};
+    ['K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr'].forEach((s,i)=>sym['4,'+(i+1)]=s);
+    for(let p=1;p<=7;p++)for(let g=1;g<=18;g++){if(p===1&&g>1&&g<18)continue;if((p===2||p===3)&&g>2&&g<13)continue;
+      const px=ox+(g-1)*cw,py=oy+(p-1)*chh;x.fillStyle=cat(p,g);x.fillRect(px+2,py+2,cw-4,chh-4);const s=sym[p+','+g];if(s){x.fillStyle='#24152E';x.font=`700 24px ${F.body}`;x.fillText(s,px+cw/2,py+chh/2+8)}}
+    for(let r=0;r<2;r++)for(let g=0;g<15;g++){x.fillStyle=r?'#E8B4D8':'#F0C9E2';x.fillRect(ox+(g+2.5)*cw+2,oy+7.3*chh+r*chh*.82+2,cw-4,chh*.82-4)}});
+  poster(2.7,1.58,5.65,S+1.65,ptable);
+  const rubric=cnv(512,360,(x,w,h)=>{x.fillStyle='#FFFDF4';x.fillRect(0,0,w,h);x.fillStyle='#B23A48';x.font=`700 34px ${F.body}`;x.fillText('GRADING RUBRIC',30,56);
+    x.font=`500 26px ${F.body}`;[['Correct setup','3'],['Units & sig. figs','2'],['Balanced equation','3'],['Final answer','2']].forEach(([a,b],i)=>{x.fillStyle='#24152E';x.fillText('✓  '+a,30,118+i*56);x.textAlign='right';x.fillText(b+' pts',w-30,118+i*56);x.textAlign='left'})});
+  poster(1.25,.88,-5.25,S+1.85,rubric);
+  // benches with glassware
+  const benchTop=basic(lin('#2C2F38')),benchBase=basic(lin('#7A5C40'));
+  [[-1.2,-196.15,9.6],[.9,-193.85,7.2]].forEach(([x,z,l])=>{box(l,.06,.86,benchTop,X0+x,S+.93,z,TW);box(l-.1,.86,.76,benchBase,X0+x,S+.45,z,TW)});
+  function flask(x,z,col,s){const g=new T.Group();g.position.set(X0+x,S+.96,z);g.scale.setScalar(s||1);TW.add(g);
+    const b=new T.Mesh(new T.CylinderGeometry(.035,.13,.2,20),glassW);b.position.y=.1;g.add(b);const n=new T.Mesh(new T.CylinderGeometry(.03,.035,.12,12),glassW);n.position.y=.26;g.add(n);
+    const l=new T.Mesh(new T.CylinderGeometry(.075,.123,.1,20),basic(lin(col),{toneMapped:false}));l.position.y=.05;g.add(l)}
+  function beaker(x,z,col,s){const g=new T.Group();g.position.set(X0+x,S+.96,z);g.scale.setScalar(s||1);TW.add(g);
+    const b=new T.Mesh(new T.CylinderGeometry(.08,.08,.18,20,1,true),glassW);b.position.y=.09;g.add(b);const l=new T.Mesh(new T.CylinderGeometry(.074,.074,.1,20),basic(lin(col),{toneMapped:false}));l.position.y=.05;g.add(l)}
+  function rack(x,z,cols){box(.42,.05,.12,basic(lin('#E8E2D4')),X0+x,S+1.02,z,TW);cols.forEach((c,i)=>{const t=new T.Mesh(new T.CylinderGeometry(.018,.018,.22,10),glassW);t.position.set(X0+x-.15+i*.075,S+1.09,z);TW.add(t);const l=new T.Mesh(new T.CylinderGeometry(.016,.016,.09,10),basic(lin(c),{toneMapped:false}));l.position.set(X0+x-.15+i*.075,S+1.03,z);TW.add(l)})}
+  flask(-5.2,-196.1,'#2EC4B6',1.2);beaker(-4.6,-196.25,'#F2A541');flask(-3.3,-196.1,'#E0559A');rack(-2.2,-196.2,['#8E6BD8','#2EC4B6','#E0559A','#F2A541','#7FE0A8']);
+  beaker(-.8,-196.05,'#7CD3E8',1.3);flask(.6,-196.15,'#F2A541',1.1);flask(2.0,-196.1,'#8E6BD8');beaker(2.7,-196.2,'#E0559A');
+  flask(-1.6,-193.8,'#7FE0A8',1.3);beaker(-.4,-193.95,'#2EC4B6');rack(1.1,-193.85,['#F2A541','#E0559A','#7CD3E8','#8E6BD8','#2EC4B6']);flask(3.2,-193.8,'#E0559A',1.15);
+  // graded papers and a red pen on the front bench
+  [0,1,2,3].forEach(i=>box(.3,.006,.4,basic(lin('#FFFFFF')),X0+4.35+i*.01,S+.965+i*.008,-193.8+i*.02,TW));
+  const pen=new T.Mesh(new T.CylinderGeometry(.008,.008,.16,8),basic(lin('#C8303F')));pen.rotation.z=Math.PI/2;pen.rotation.y=.5;pen.position.set(X0+4.75,S+1.0,-193.75);TW.add(pen);
+  }
+
+  /* ----- FLOOR 11 · Bank Mandiri, backend development: an engineering floor ----- */
+  {const S=33;
+  shell(S,'#18213A',tileT('#2A3248','#283046','#20273A'),'#10162A','#DDEBFF');
+  transom(S,['FLOOR 11 · BANK MANDIRI · BACKEND','11 层 · 曼底利银行 · 后端开发']);
+  const dash=cnv(2048,452,(x,w,h)=>{x.fillStyle='#070D1C';x.fillRect(0,0,w,h);x.fillStyle='#E6C27F';x.font=`500 30px ${F.mono}`;x.fillText('INTEGRATED HUMAN CAPITAL SUITES · PRODUCTION',36,52);
+    x.fillStyle='#7FE0A8';x.textAlign='right';x.fillText('● ALL SYSTEMS NORMAL',w-36,52);x.textAlign='left';
+    x.strokeStyle='rgba(124,211,232,.25)';x.lineWidth=2;x.beginPath();x.moveTo(36,74);x.lineTo(w-36,74);x.stroke();
+    x.font=`500 25px ${F.mono}`;[['GET ','/api/v1/employees/{id}','200','41 ms'],['POST','/api/v1/leave-requests','201','63 ms'],['PUT ','/api/v1/payroll/{period}','200','88 ms'],['GET ','/api/v1/attendance?month=10','200','35 ms'],['POST','/api/v1/performance-reviews','201','57 ms'],['GET ','/api/v1/org-units/tree','200','49 ms']].forEach((r,i)=>{const y=122+i*50;
+      x.fillStyle=r[0].startsWith('GET')?'#7CD3E8':r[0].startsWith('POST')?'#E6C27F':'#C79BD8';x.fillText(r[0],36,y);x.fillStyle='#DCEBF6';x.fillText(r[1],120,y);x.fillStyle='#7FE0A8';x.fillText(r[2],600,y);x.fillStyle='#8FB0C8';x.fillText(r[3],680,y)});
+    const L=['Controller','Validation · DTO','Service','Business rules','Mapper','Repository','Entity','PostgreSQL'];x.fillStyle='#8FB0C8';x.font=`500 22px ${F.mono}`;x.fillText('8 SERVICE LAYERS',850,112);
+    L.forEach((l,i)=>{const y=126+i*38;x.fillStyle=`rgba(124,211,232,${.12+i*.035})`;x.fillRect(850,y,400,32);x.fillStyle='#DCEBF6';x.font=`500 20px ${F.mono}`;x.fillText(l,866,y+23)});
+    [['25,000+','employees on the platform'],['10+','production REST APIs'],['500+','UAT cases passed']].forEach(([a,b],i)=>{const y=130+i*102;x.fillStyle='#F6F3F9';x.font=`600 56px ${F.body}`;x.fillText(a,1320,y+40);x.fillStyle='#8FB0C8';x.font=`500 22px ${F.mono}`;x.fillText(b.toUpperCase(),1320,y+74)});
+    x.strokeStyle='#7FE0A8';x.lineWidth=3;x.beginPath();for(let i=0;i<=60;i++){const px=1720+i*4.6,py=400-Math.abs(Math.sin(i*.5)*18+Math.sin(i*.17)*24)-10;i?x.lineTo(px,py):x.moveTo(px,py)}x.stroke();x.fillStyle='#8FB0C8';x.font=`500 20px ${F.mono}`;x.fillText('p95 latency',1720,330)});
+  frameBoard(7.6,1.68,S+1.62,'#05080F',dash,.25);
+  // vault door
+  const vg=new T.Group();vg.position.set(X0-5.3,S+1.4,RZ+.08);TW.add(vg);
+  const vd=new T.Mesh(new T.CylinderGeometry(.82,.82,.12,40),basic(lin('#8E96A8')));vd.rotation.x=Math.PI/2;vg.add(vd);
+  const vr=new T.Mesh(new T.TorusGeometry(.84,.06,10,40),basic(lin('#C39445')));vg.add(vr);
+  const hub=new T.Mesh(new T.CylinderGeometry(.16,.16,.16,20),basic(lin('#C39445')));hub.rotation.x=Math.PI/2;hub.position.z=.06;vg.add(hub);
+  [0,1,2].forEach(k=>{const sp=box(1.0,.05,.05,basic(lin('#C39445')),0,0,.12,vg);sp.rotation.z=k*Math.PI/3});
+  for(let k=0;k<12;k++){const a=k*Math.PI/6,b=new T.Mesh(new T.SphereGeometry(.035,8,6),basic(lin('#5A6070')));b.position.set(Math.cos(a)*.66,Math.sin(a)*.66,.07);vg.add(b)}
+  // server racks with blinking lights
+  const rackFace=tex(cnv(256,704,(x,w,h)=>{x.fillStyle='#0B0F1C';x.fillRect(0,0,w,h);for(let u=0;u<14;u++){const y=12+u*49;x.fillStyle='#161C2E';x.fillRect(14,y,w-28,42);x.fillStyle='#232B42';for(let v=0;v<16;v++)x.fillRect(70+v*10,y+14,5,14)}}));
+  const rackM=basic(lin('#0B0F1C'));
+  [4.75,5.6,6.45].forEach((rx,ri)=>{const m=new T.Mesh(new T.BoxGeometry(.8,2.2,.9),[rackM,rackM,rackM,rackM,basic(lin('#ffffff'),{map:rackFace}),rackM]);m.position.set(X0+rx,S+1.1,-196.5);TW.add(m);
+    for(let u=0;u<14;u++)for(let k=0;k<2;k++){const col=['#7FE0A8','#7CD3E8','#E6C27F','#7FE0A8'][(u+k+ri)%4];const l=plane(.035,.035,basic(lin(col),{toneMapped:false}),X0+rx-.3+k*.07,S+1.1+.98-u*.154,-196.04,0,TW);world.leds.push({m:l,p:Math.random(),s:.4+Math.random()*1.6,d:.35+Math.random()*.5})}});
+  // desks with monitors facing the window
+  const codeTex=(lines)=>cnv(660,400,(x,w,h)=>{x.fillStyle='#0E1424';x.fillRect(0,0,w,h);x.fillStyle='#1A2236';x.fillRect(0,0,w,30);x.font=`500 19px ${F.mono}`;lines.forEach((l,i)=>{x.fillStyle=l[1]||'#DCEBF6';x.fillText(l[0],18,58+i*28)})});
+  const scr=[
+    codeTex([['@RestController','#E6C27F'],['@RequestMapping("/api/v1/employees")','#E6C27F'],['public class EmployeeController {'],['  private final EmployeeService svc;','#8FB0C8'],['  @GetMapping("/{id}")','#E6C27F'],['  ResponseEntity<EmployeeDto> get(','#DCEBF6'],['      @PathVariable Long id) {'],['    return ResponseEntity.ok(','#7CD3E8'],['        svc.findById(id));','#7CD3E8'],['  }'],['}']]),
+    codeTex([['POST /api/v1/leave-requests','#E6C27F'],['201 Created · 63 ms','#7FE0A8'],[''],['Tests','#8FB0C8'],['✓ status is 201','#7FE0A8'],['✓ response matches schema','#7FE0A8'],['✓ approver assigned','#7FE0A8'],['✓ leave balance updated','#7FE0A8'],['✓ audit log written','#7FE0A8'],[''],['12 / 12 passed','#F6F3F9']]),
+    codeTex([['@Service','#E6C27F'],['@Transactional','#E6C27F'],['public class LeaveService {'],['  public LeaveDto submit(LeaveReq r) {'],['    validator.check(r);','#7CD3E8'],['    rules.applyPolicy(r);','#7CD3E8'],['    var e = mapper.toEntity(r);','#7CD3E8'],['    return mapper.toDto(','#7CD3E8'],['        repo.save(e));','#7CD3E8'],['  }'],['}']]),
+    codeTex([['UAT · sprint 9','#E6C27F'],[''],['case 481  payroll export   PASS','#7FE0A8'],['case 482  leave approval   PASS','#7FE0A8'],['case 483  org chart sync   PASS','#7FE0A8'],['case 484  attendance csv  PASS','#7FE0A8'],['case 485  role access     PASS','#7FE0A8'],[''],['500+ cases · 0 open defects','#F6F3F9']])
+  ];
+  const deskM=basic(lin('#C9CED8')),legM=basic(lin('#3A4256')),bezel=basic(lin('#05070D'));
+  [[-3.9,-194.6],[-.9,-194.6]].forEach(([dx,dz],di)=>{box(2.4,.05,.8,deskM,X0+dx,S+.74,dz,TW);[-1.1,1.1].forEach(lx=>box(.05,.72,.7,legM,X0+dx+lx,S+.37,dz,TW));
+    [-.42,.42].forEach((mx,mi)=>{box(.74,.46,.03,bezel,X0+dx+mx,S+1.16,dz-.1,TW);plane(.7,.42,basic(lin('#ffffff'),{map:tex(scr[di*2+mi]),toneMapped:false}),X0+dx+mx,S+1.16,dz-.08,0,TW);box(.05,.32,.05,legM,X0+dx+mx,S+.92,dz-.14,TW)})});
+  // a plant
+  const pot=new T.Mesh(new T.CylinderGeometry(.2,.16,.4,16),basic(lin('#C39445')));pot.position.set(X0+2.4,S+.2,-195.2);TW.add(pot);
+  [[0,.62,0,.32],[.12,.82,.05,.22],[-.1,.78,-.06,.24]].forEach(([dx,dy,dz,r])=>{const s=new T.Mesh(new T.SphereGeometry(r,14,10),basic(lin(dy>.7?'#3E7A55':'#2F6446')));s.position.set(X0+2.4+dx,S+dy,-195.2+dz);TW.add(s)});
+  }
+
+  /* ----- FLOOR 16 · Calculus TA, English-taught programme: a seminar room ----- */
+  {const S=48;
+  const wood=tex(cnv(512,256,(x,w,h)=>{for(let r=0;r<8;r++){x.fillStyle=['#A87A52','#9C6F48','#B1835A','#A2744C'][r%4];x.fillRect(0,r*32,w,32);x.fillStyle='rgba(60,35,20,.35)';x.fillRect(0,r*32+30,w,2);x.fillRect((r*137)%w,r*32,2,32)}}),[6,3]);
+  shell(S,'#EAE3D3',wood,'#F3EFE6','#FFF8EA');
+  transom(S,['FLOOR 16 · CALCULUS TA','16 层 · 微积分助教']);
+  const wb=cnv(2048,455,(x,w,h)=>{x.fillStyle='#F7F7F4';x.fillRect(0,0,w,h);x.fillStyle='rgba(120,130,150,.08)';for(let i=0;i<5;i++)x.fillRect(200+i*380,30+i*60,260,8);
+    const blue='#1F4FA8',blk='#1E1E26',red='#C8303F',grn='#2E8A57';x.lineCap='round';
+    x.fillStyle=blue;x.font=`600 44px ${HAND}`;x.fillText('Calculus (EN) · Midterm review',40,60);
+    x.fillStyle=blk;x.font=`600 110px ${HAND}`;x.fillText('∫',50,210);x.font=`600 40px ${HAND}`;x.fillText('π',100,120);x.fillText('0',92,232);x.font=`600 70px ${HAND}`;x.fillText('sin x dx = 2',140,190);
+    x.font=`600 62px ${HAND}`;x.fillText('d/dx [x² eˣ] = (x² + 2x) eˣ',50,300);
+    x.fillText('lim   sin x / x = 1',50,400);x.font=`500 30px ${HAND}`;x.fillText('x→0',58,428);
+    x.fillStyle=red;x.font=`600 58px ${HAND}`;x.fillText('eˣ = Σ xⁿ / n!',780,140);
+    // graph: area under a curve with a tangent line
+    const gx=840,gy=410,gw=520,gh=230;x.strokeStyle=blk;x.lineWidth=4;x.beginPath();x.moveTo(gx,gy);x.lineTo(gx+gw,gy);x.moveTo(gx+20,gy+10);x.lineTo(gx+20,gy-gh);x.stroke();
+    const f=t=>gy-30-150*Math.sin(t*Math.PI)*(.6+.4*t);x.fillStyle='rgba(31,79,168,.18)';x.beginPath();x.moveTo(gx+60,gy);for(let i=0;i<=40;i++){const t=i/40;x.lineTo(gx+60+t*400,f(t))}x.lineTo(gx+460,gy);x.fill();
+    x.strokeStyle=blue;x.lineWidth=5;x.beginPath();for(let i=0;i<=40;i++){const t=i/40;i?x.lineTo(gx+60+t*400,f(t)):x.moveTo(gx+60,f(0))}x.stroke();
+    const t0=.25,yy=f(t0),sl=(f(t0+.01)-f(t0-.01))/(.02*400);x.strokeStyle=red;x.lineWidth=4;x.beginPath();x.moveTo(gx+60+t0*400-110,yy-sl*110);x.lineTo(gx+60+t0*400+150,yy+sl*150);x.stroke();
+    x.fillStyle=red;x.beginPath();x.arc(gx+60+t0*400,yy,9,0,7);x.fill();x.font=`500 34px ${HAND}`;x.fillText("f'(a)",gx+60+t0*400+60,yy-30);x.fillStyle=blue;x.fillText('area = ∫ f(x) dx',gx+250,gy-36);
+    x.fillStyle=grn;x.font=`600 46px ${HAND}`;x.fillText('Office hours in English',1460,120);x.fillText('Tue & Thu · 4–6 pm',1460,180);
+    x.fillStyle=red;x.font=`600 50px ${HAND}`;x.fillText('Quiz 6 graded ✓',1500,300);x.strokeStyle=red;x.lineWidth=4;x.strokeRect(1480,250,370,72);
+    x.fillStyle=blk;x.font=`500 38px ${HAND}`;x.fillText('Common mistake: forget + C !',1460,400)});
+  frameBoard(8.6,1.91,S+1.62,'#B8BCC4',wb,.3);
+  box(3,.04,.1,basic(lin('#B8BCC4')),X0+.3,S+.62,RZ+.1,TW);
+  [['#1F4FA8',-.5],['#C8303F',-.35],['#1E1E26',-.2]].forEach(([c,x])=>{const m=new T.Mesh(new T.CylinderGeometry(.015,.015,.12,8),basic(lin(c)));m.rotation.z=Math.PI/2;m.position.set(X0+x,S+.655,RZ+.12);TW.add(m)});
+  const intl=cnv(512,360,(x,w,h)=>{x.fillStyle='#1F4FA8';x.fillRect(0,0,w,h);x.strokeStyle='rgba(255,255,255,.5)';x.lineWidth=3;x.beginPath();x.arc(w/2,140,80,0,7);x.stroke();x.beginPath();x.ellipse(w/2,140,36,80,0,0,7);x.stroke();x.beginPath();x.moveTo(w/2-80,140);x.lineTo(w/2+80,140);x.stroke();
+    x.fillStyle='#FFFFFF';x.textAlign='center';x.font=`700 30px ${F.body}`;x.fillText('INTERNATIONAL PROGRAMME',w/2,270);x.font=`500 24px ${F.body}`;x.fillText('Taught in English · SJTU',w/2,312)});
+  poster(1.3,.92,-6.4,S+1.8,intl);
+  const clock=cnv(256,256,(x,w,h)=>{x.fillStyle='#FFFFFF';x.beginPath();x.arc(128,128,120,0,7);x.fill();x.strokeStyle='#1E1E26';x.lineWidth=8;x.stroke();for(let i=0;i<12;i++){const a=i*Math.PI/6;x.lineWidth=i%3?3:6;x.beginPath();x.moveTo(128+Math.cos(a)*98,128+Math.sin(a)*98);x.lineTo(128+Math.cos(a)*110,128+Math.sin(a)*110);x.stroke()}
+    x.lineWidth=7;x.beginPath();x.moveTo(128,128);x.lineTo(128+Math.cos(-Math.PI/2+Math.PI*2*4/12)*60,128+Math.sin(-Math.PI/2+Math.PI*2*4/12)*60);x.stroke();x.lineWidth=4;x.beginPath();x.moveTo(128,128);x.lineTo(128,40);x.stroke()});
+  plane(.5,.5,new T.MeshBasicMaterial({map:tex(clock),transparent:true}),X0+5.6,S+2.5,RZ+.02,0,TW);
+  // two rows of desks and chairs facing the board
+  const dM=basic(lin('#9A6A43')),cM=basic(lin('#2E3A5C')),lg=basic(lin('#4A4F5E'));
+  [-195.1,-193.6].forEach(z=>{[-4.6,-1.6,1.4].forEach(x=>{box(2.6,.05,.5,dM,X0+x,S+.74,z,TW);box(.05,.72,.4,lg,X0+x-1.2,S+.37,z,TW);box(.05,.72,.4,lg,X0+x+1.2,S+.37,z,TW);
+    [-.7,.7].forEach(cx=>{box(.45,.05,.42,cM,X0+x+cx,S+.46,z+.5,TW);box(.45,.5,.05,cM,X0+x+cx,S+.72,z+.72,TW)})})});
+  // lectern with exam scripts and a globe
+  box(.8,1.1,.55,dM,X0+5.4,S+.55,-196.3,TW);box(.9,.05,.62,basic(lin('#7A5235')),X0+5.4,S+1.12,-196.3,TW);
+  [0,1,2,3,4].forEach(i=>box(.28,.006,.38,basic(lin('#FFFFFF')),X0+5.25+i*.008,S+1.15+i*.007,-196.3,TW));
+  const globe=new T.Mesh(new T.SphereGeometry(.16,18,12),basic(lin('#2E6FB8')));globe.position.set(X0+5.62,S+1.36,-196.25);TW.add(globe);
+  const gw=new T.LineSegments(new T.WireframeGeometry(new T.SphereGeometry(.165,12,8)),new T.LineBasicMaterial({color:lin('#E6C27F')}));gw.position.copy(globe.position);TW.add(gw);world.globe=gw;
+  }
+  // rooftop: billboard, ticket and gift shop
+  const bb=new T.Group();bb.position.set(X0,TH,-205.5);TW.add(bb);
+  [-4.6,4.6].forEach(px=>box(.3,3,.3,basic(lin('#2A2140')),px,1.5,0,bb));
+  const bbt=cnv(2400,1100,(x,w,h)=>{x.fillStyle='#120C22';x.fillRect(0,0,w,h);x.strokeStyle='#C39445';x.lineWidth=10;x.strokeRect(40,40,w-80,h-80);
+    x.fillStyle='#FFE3A0';for(let i=0;i<=38;i++)[72,h-72].forEach(y=>{x.beginPath();x.arc(80+i*(w-160)/38,y,11,0,7);x.fill()});
+    for(let i=1;i<16;i++)[80,w-80].forEach(px=>{x.beginPath();x.arc(px,72+i*(h-144)/16,11,0,7);x.fill()});
+    x.textAlign='center';x.fillStyle='#E6C27F';x.font=`500 50px ${F.mono}`;x.fillText(T_('PATRICIA EILEEN · ROOFTOP','PATRICIA EILEEN · 天台'),w/2,250);
+    x.fillStyle='#F6F3F9';x.font=`italic 400 250px ${F.disp}`;x.fillText(T_('Thank you','感谢您的'),w/2,560);x.fillText(T_('for visiting','参观'),w/2,830)});
+  const board=new T.Mesh(new T.BoxGeometry(12,5.5,.3),[goldB,goldB,goldB,goldB,basic(lin('#ffffff'),{map:tex(bbt),toneMapped:false}),goldB]);board.position.set(0,5.75,0);bb.add(board);
+  const rl=new T.PointLight('#FFE3B0',1.5,18,2);rl.position.set(X0,TH+3.2,-198.5);TW.add(rl);
+  const ticket=new T.Mesh(new T.BoxGeometry(1.6,.8,.01),[edge,edge,edge,edge,std('#ffffff',{map:backTex}),std('#ffffff',{map:frontTex})]);
+  ticket.position.set(X0+8,TH+4.4,-203.5);ticket.rotation.y=-.3;TW.add(ticket);world.ticket=ticket;world.ticketY=TH+4.4;
+  world.setStampTicket=(t)=>{ticket.material[4].map=t;ticket.material[4].needsUpdate=true};
+
+  /* ---------- dust ---------- */
+  function dust(n,box3,color,size){const g=new T.BufferGeometry(),p=new Float32Array(n*3);for(let i=0;i<n;i++){p[i*3]=box3[0]+Math.random()*(box3[1]-box3[0]);p[i*3+1]=box3[2]+Math.random()*(box3[3]-box3[2]);p[i*3+2]=box3[4]+Math.random()*(box3[5]-box3[4])}g.setAttribute('position',new T.BufferAttribute(p,3));const pts=new T.Points(g,new T.PointsMaterial({color,size,transparent:true,opacity:.7,depthWrite:false,toneMapped:false}));scene.add(pts);return pts}
+  world.dust=[dust(500,[-7,7,0,6,-8,6],'#E6C27F',.025),dust(500,[-3.8,3.8,0,5.4,-68,-8],'#FFF2D6',.02),dust(260,[-8,8,0,6.8,-80,-68],'#E6C27F',.025),dust(900,[8,58,0,9,-92,-56],'#7CD3E8',.03)];
+
+  if(LANG!==world.buildLang)relangCanvases();
+  built=true;
+};
+}
+
+/* =========================================================
+   CAMERA PATH
+   ========================================================= */
+const TOTAL=2380,U=x=>x/TOTAL;
+const FR=[360,424,488,552,616,680,744,808],FZ=[-13,-19.5,-26,-32.5,-39,-45.5,-52,-58.5],FS=[-1,1,-1,1,-1,1,-1,1];
+const K=[
+  [0,[0,1.62,4.6],[0,1.62,0]],
+  [102,[0,1.62,3.5],[0,1.62,0]],
+  [187.5,[0,2.0,1.2],[0,3.4,-8]],
+  [247.5,[0,1.9,-3.4],[0,3.6,-8]],
+  [307.5,[0,1.7,-10.5],[0,1.7,-24]],
+];
+// gallery: stop facing each painting; between paintings, a pass-through point looking down the hall
+FR.forEach((p,i)=>{
+  K.push([p,[-FS[i]*1.0,1.68,FZ[i]],[FS[i]*4,1.8,FZ[i]]]);
+  if(i<FR.length-1){const mz=(FZ[i]+FZ[i+1])/2;K.push([p+32,[0,1.7,mz],[0,1.75,mz-14],1])}
+});
+// leadership hall: every turn is a quarter turn (left wall, back wall left to right, then the door on the right)
+K.push([888,[0,1.75,-63],[0,2.1,-80]],[935,[-.6,1.9,-69.6],[-4,2.3,-78],1],
+  [990,[-3.0,1.8,-74],[-8,2.4,-74]],
+  [1050,[-4.7,1.85,-76.4],[-4.7,2.5,-80]],[1105,[-2.6,1.85,-76.4],[-2.6,2.5,-80]],[1165,[0,1.9,-75.6],[0,2.6,-80]],
+  [1225,[2.6,1.85,-76.4],[2.6,2.5,-80]],[1280,[4.7,1.85,-76.4],[4.7,2.5,-80]],
+  [1340,[4.2,1.75,-74],[9,1.9,-74]],
+// tech wing
+  [1400,[10.6,1.85,-74],[20,1.5,-74]],[1460,[14,2.3,-76.6],[12.6,2.5,-81.6]],
+  [1520,[17.4,1.95,-74.3],[20,1.5,-70.5]],[1580,[23.4,1.95,-74],[26,1.5,-77.5]],[1640,[29.4,1.95,-73.8],[32,1.5,-70.5]],
+  [1700,[35.4,1.95,-74.2],[38,1.5,-77.5]],
+// the workshop: through the amber door, then along the three benches
+  [1760,[44.5,1.9,-74],[52,2.1,-74]],[1800,[51,1.95,-74],[58,1.9,-74],1],
+  [1840,[55,2.8,-70.6],[65.5,1.0,-79]],
+  [1885,[58.6,1.62,-77.45],[58.8,1.28,-79.6]],[1935,[65.6,1.62,-77.45],[65.8,1.32,-79.6]],[1975,[72.6,1.65,-77.5],[72.8,1.2,-79.6]],
+// the elevator: doors open, step in (a fade covers the ride across town)
+  [2020,[70.4,1.9,-74],[76.6,2.0,-74]],[2055,[75.2,1.9,-74],[80,1.95,-74],1]);
+// career tower: its own camera route, so the jump across town never bends the museum path
+const K2=[
+  [2066,[200,1.7,-146],[200,22,-192],1],
+  [2100,[200,1.75,-158],[200,30,-192]],
+  [2122,[200,1.85,-178],[200,6,-192],1],
+  [2145,[200,2.0,-186.4],[200,2.0,-192]],
+  [2195,[200,19.6,-188.3],[200,19.3,-197.5]],
+  [2225,[200,26.6,-186.4],[200,29.1,-192],1],
+  [2255,[200,34.6,-188.3],[200,34.3,-197.5]],
+  [2285,[200,41.6,-186.4],[200,44.1,-192],1],
+  [2315,[200,49.6,-188.3],[200,49.3,-197.5]],
+  [2345,[200,59.4,-187.2],[200,62.5,-200],1],
+  [2380,[200,62.4,-190.8],[200,66,-212]],
+];
+K.forEach(k=>{k[0]=U(k[0])});K2.forEach(k=>{k[0]=U(k[0])});
+const SEG=[{K},{K:K2}],SPLIT=(K[K.length-1][0]+K2[0][0])/2;
+if(glOK)SEG.forEach(s=>{s.pos=new THREE.CatmullRomCurve3(s.K.map(k=>new THREE.Vector3(...k[1])),false,'centripetal');s.look=new THREE.CatmullRomCurve3(s.K.map(k=>new THREE.Vector3(...k[2])),false,'centripetal')});
+function segU(K,p){
+  for(let i=0;i<K.length-1;i++){if(p<=K[i+1][0]){
+    const t=clamp((p-K[i][0])/(K[i+1][0]-K[i][0])),a=!K[i][3],b=!K[i+1][3];
+    // stops ease in/out; pass-through points keep the camera moving
+    const e=a&&b?t*.25+.75*t*t*t*(t*(t*6-15)+10):a?t*t:b?1-(1-t)*(1-t):t;
+    return (i+e)/(K.length-1)}}
+  return 1;
+}
+function camPose(p,P,L){const s=p<=SPLIT?SEG[0]:SEG[1],u=segU(s.K,p);P.copy(s.pos.getPoint(u));L.copy(s.look.getPoint(u))}
+
+/* =========================================================
+   ZONES, PANELS, HUD
+   ========================================================= */
+const ZONES=[
+  {name:'Ticket Counter',zh:'售票处',a:0,go:0,label:'Tilt',lzh:'倾斜',chord:0},
+  {name:'Lobby',zh:'大厅',a:U(150),go:U(247.5),label:'Enter',lzh:'进入',chord:0},
+  {name:'East Gallery',zh:'东展厅',a:U(285),go:U(360),label:'View',lzh:'观看',chord:1},
+  {name:'Leadership Hall',zh:'领导力展厅',a:U(880),go:U(990),label:'View',lzh:'观看',chord:2},
+  {name:'Tech Wing',zh:'科技馆',a:U(1360),go:U(1460),label:'Inspect',lzh:'查看',chord:3},
+  {name:'Workshop',zh:'工作坊',a:U(1786),go:U(1840),label:'Inspect',lzh:'查看',chord:3},
+  {name:'Career Tower',zh:'职业大厦',a:U(2060),go:U(2145),label:'Ride',lzh:'乘坐',chord:5},
+  {name:'Rooftop',zh:'天台',a:U(2348),go:1,label:'Exit',lzh:'出口',chord:4},
+];
+const dots=$('#dots');
+ZONES.forEach((z,i)=>{const b=document.createElement('button');b.type='button';b.setAttribute('aria-label','Go to '+z.name);b.addEventListener('click',()=>goTo(z.go));dots.appendChild(b)});
+const dotBtns=[...dots.children];
+function maxScroll(){return document.documentElement.scrollHeight-innerHeight}
+function goTo(p){window.scrollTo({top:p*maxScroll(),behavior:reduce?'auto':'smooth'})}
+$('#brand').addEventListener('click',e=>{e.preventDefault();goTo(0)});
+
+function splitAll(){$$('.split').forEach(el=>{if(el.querySelector('.ch'))return;const t=el.textContent;el.textContent='';[...t].forEach((ch,i)=>{const s=document.createElement('span');s.className='ch';s.style.setProperty('--i',i);s.textContent=ch===' '?'\u00a0':ch;el.appendChild(s)})})}
+splitAll();
+const panels=$$('#ui [data-a], #ui [data-art]').map(el=>{
+  if(el.dataset.art!==undefined){const p=FR[+el.dataset.art];return{el,a:U(p-26),b:U(p+26),on:false}}
+  return{el,a:U(+el.dataset.a),b:U(+el.dataset.b),on:false};
+});
+
+/* achievements */
+const ACH=[
+  {id:'ticket',name:'Ticket Holder',zh:'持票入场',desc:'Hand over your banknote',dzh:'递出你的钞票'},
+  {id:'critic',name:'Art Critic',zh:'艺术评论家',desc:'View all eight works in the East Gallery',dzh:'看完东展厅全部八件作品'},
+  {id:'commander',name:'The Commander',zh:'指挥官',desc:'Meet the portrait in Leadership Hall',dzh:'在领导力展厅见到那幅肖像'},
+  {id:'engineer',name:'Engineer',zh:'工程师',desc:'Inspect all four projects in the Tech Wing',dzh:'查看科技馆全部四个项目'},
+  {id:'top',name:'Top Floor',zh:'顶层',desc:'Ride the Career Tower to the roof',dzh:'乘职业大厦电梯到达天台'},
+  {id:'guest',name:'Signed the Guest Book',zh:'签下留言簿',desc:'Copy the email at the exit',dzh:'在出口复制邮箱'},
+];
+let got=new Set();
+try{(JSON.parse(localStorage.getItem('pe-museum-ach')||'[]')).forEach(i=>got.add(i))}catch(e){}
+function renderAch(){
+  $('#achCount').textContent=got.size+'/'+ACH.length;
+  $('#achList').innerHTML=ACH.map(a=>`<div class="${got.has(a.id)?'got':''}"><span class="medal">★</span><span><b>${T_(a.name,a.zh)}</b><span>${T_(a.desc,a.dzh)}</span></span></div>`).join('');
+}
+renderAch();
+let toastT;
+function unlock(id){
+  if(got.has(id))return;got.add(id);renderAch();
+  try{localStorage.setItem('pe-museum-ach',JSON.stringify([...got]))}catch(e){}
+  const a=ACH.find(x=>x.id===id);$('#toastTxt').textContent=T_(a.name,a.zh)+(got.size===ACH.length?T_(' · Full tour complete',' · 全程完成'):'');
+  const t=$('#toast');t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),3200);
+  snd.chime();
+}
+$('#achBtn').addEventListener('click',()=>{const l=$('#achList');l.hidden=!l.hidden;$('#achBtn').setAttribute('aria-expanded',String(!l.hidden))});
+
+/* copy */
+document.addEventListener('click',e=>{
+  if(e.target.closest('#againBtn')){goTo(0);return}
+  const btn=e.target.closest('#copyBtn');if(!btn)return;const em=$('#em');
+  const done=()=>{btn.textContent=T_('Copied','已复制');setTimeout(()=>btn.textContent=T_('Copy email','复制邮箱'),1600)};
+  const fallback=()=>{const s=getSelection(),r=document.createRange();r.selectNodeContents(em);s.removeAllRanges();s.addRange(r);btn.textContent=T_('Selected, press copy','已选中，请复制')};
+  try{navigator.clipboard.writeText(em.textContent).then(done,fallback)}catch(e){fallback()}
+  unlock('guest');
+});
+
+/* language switch: swaps every card, label and 3D sign */
+const I18N=[];
+$$('template[lang="zh"]').forEach(tp=>{const el=tp.parentElement;el._zh=tp.innerHTML;tp.remove();el._en=el.innerHTML;I18N.push(el)});
+$$('[data-zh]').forEach(el=>{el._en=el.innerHTML;el._zh=el.dataset.zh;I18N.push(el)});
+function setLang(l,first){
+  LANG=l;try{localStorage.setItem('pe-lang',l)}catch(e){}
+  document.documentElement.lang=l==='zh'?'zh-CN':'en';
+  I18N.forEach(el=>{el.innerHTML=l==='zh'?el._zh:el._en});splitAll();renderAch();
+  $('#langBtn').textContent=l==='zh'?'EN':'中文';
+  $$('.lang-pick button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
+  if(!first){if(built)relangCanvases();if(world.onLang)world.onLang()}
+}
+$('#langBtn').addEventListener('click',()=>setLang(LANG==='zh'?'en':'zh'));
+$$('.lang-pick button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.l!==LANG)setLang(b.dataset.l)}));
+setLang(LANG,true);
+
+/* =========================================================
+   SOUND (Web Audio, generated)
+   ========================================================= */
+const CHORDS=[[110,164.81,246.94,261.63],[87.31,174.61,220,329.63],[73.42,146.83,220,349.23],[82.41,164.81,246.94,369.99],[130.81,196,246.94,293.66],[98,196,246.94,329.63]];
+const snd={ctx:null,on:false,zone:0,
+  init(){
+    if(this.ctx)return;
+    const C=window.AudioContext||window.webkitAudioContext;if(!C)return;
+    const ctx=this.ctx=new C();
+    this.master=ctx.createGain();this.master.gain.value=0;this.master.connect(ctx.destination);
+    this.filter=ctx.createBiquadFilter();this.filter.type='lowpass';this.filter.frequency.value=900;this.filter.Q.value=.7;this.filter.connect(this.master);
+    const lfo=ctx.createOscillator(),lg=ctx.createGain();lfo.frequency.value=.07;lg.gain.value=320;lfo.connect(lg);lg.connect(this.filter.frequency);lfo.start();
+    this.oscs=CHORDS[0].map((f,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type=i%2?'sine':'triangle';o.frequency.value=f;o.detune.value=(i-1.5)*4;g.gain.value=i===0?.11:.06;o.connect(g);g.connect(this.filter);o.start();return o});
+    this.fx=ctx.createGain();this.fx.gain.value=.5;this.fx.connect(this.master);
+    const len=ctx.sampleRate*1.2;this.noise=ctx.createBuffer(1,len,ctx.sampleRate);const d=this.noise.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+    this.blip=setInterval(()=>{if(this.on&&ZONES[this.zone].chord===3&&Math.random()<.55){const n=[659.25,739.99,987.77,1108.73,1318.51][Math.floor(Math.random()*5)];this.tone(n,.12,.035,'sine')}},260);
+  },
+  set(on){
+    if(on)this.init();if(!this.ctx)return;
+    this.on=on;if(on&&this.ctx.state==='suspended')this.ctx.resume();
+    this.master.gain.setTargetAtTime(on?.55:0,this.ctx.currentTime,.4);
+    $('#soundBtn').classList.toggle('on',on);$('#soundBtn').setAttribute('aria-pressed',String(on));$('#soundLbl').textContent=on?'Sound on':'Sound off';
+  },
+  setZone(z){
+    this.zone=z;if(!this.ctx)return;const t=this.ctx.currentTime;
+    CHORDS[ZONES[z].chord].forEach((f,i)=>this.oscs[i].frequency.setTargetAtTime(f,t,.7));
+    this.filter.frequency.setTargetAtTime([900,1100,700,1500,1000,1250][ZONES[z].chord],t,.8);
+    if(this.on)this.whoosh();
+  },
+  tone(f,dur,vol,type){if(!this.ctx)return;const t=this.ctx.currentTime,o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(this.fx);o.start(t);o.stop(t+dur+.05)},
+  ding(){if(!this.on)return;this.tone(1318.51,.7,.09);setTimeout(()=>this.tone(1046.5,1.1,.08),160)},
+  chime(){if(!this.on)return;this.tone(987.77,.6,.12);setTimeout(()=>this.tone(1318.51,.9,.1),120)},
+  whoosh(){if(!this.ctx)return;const t=this.ctx.currentTime,s=this.ctx.createBufferSource(),f=this.ctx.createBiquadFilter(),g=this.ctx.createGain();s.buffer=this.noise;f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t);f.frequency.exponentialRampToValueAtTime(2400,t+.5);f.frequency.exponentialRampToValueAtTime(400,t+1.1);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.18,t+.3);g.gain.exponentialRampToValueAtTime(.0001,t+1.15);s.connect(f);f.connect(g);g.connect(this.fx);s.start(t);s.stop(t+1.2)},
+  stamp(){if(!this.on)return;this.tone(70,.35,.5,'sine');const t=this.ctx.currentTime,s=this.ctx.createBufferSource(),g=this.ctx.createGain(),f=this.ctx.createBiquadFilter();s.buffer=this.noise;f.type='lowpass';f.frequency.value=900;g.gain.setValueAtTime(.4,t);g.gain.exponentialRampToValueAtTime(.0001,t+.12);s.connect(f);f.connect(g);g.connect(this.fx);s.start(t);s.stop(t+.15)}
+};
+
+/* =========================================================
+   ENTER
+   ========================================================= */
+function enter(){
+  $('#loader').classList.add('gone');
+  document.documentElement.classList.remove('locked');
+  if(!glOK){$('.hud-r').hidden=true}
+}
+$('#enterBtn').addEventListener('click',()=>{tk.classList.add('taken');setTimeout(enter,reduce?0:420)});
+
+/* =========================================================
+   LOOP
+   ========================================================= */
+if(glOK){
+  world.build().catch(err=>{console.error(err);built=true});
+  const mouse={x:0,y:0,sx:0,sy:0},cur=$('#cursor'),curL=$('#cursorLbl');let cx=innerWidth/2,cy=innerHeight/2,tx=cx,ty=cy;
+  addEventListener('pointermove',e=>{mouse.x=e.clientX/innerWidth*2-1;mouse.y=-(e.clientY/innerHeight*2-1);tx=e.clientX;ty=e.clientY});
+  addEventListener('pointerover',e=>{cur.classList.toggle('big',!!e.target.closest('button,a,code'))});
+  world.onLang=()=>{zone=-1};
+  let pT=0,p=0,stamped=false,zone=-1,visited=new Set(),cases=new Set(),lastDing=-1,last=performance.now();
+  const fadeEl=$('#fade'),floorInd=$('#floorInd'),floorNum=$('#floorNum');
+  const onScroll=()=>{pT=clamp(scrollY/Math.max(1,maxScroll()))};addEventListener('scroll',onScroll,{passive:true});onScroll();
+  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<.8?66:50;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);onScroll()});
+  camera.fov=camera.aspect<.8?66:50;camera.updateProjectionMatrix();
+  const cA=new THREE.Color(),cB=new THREE.Color(),look=new THREE.Vector3();
+  const FOG=[[0,'#1D0F26',4.5,16],[U(150),'#1D0F26',7,30],[U(255),'#1D0F26',7,30],[U(322.5),'#CBC1D6',9,46],[U(847.5),'#CBC1D6',9,46],[U(915),'#1D0F26',6,26],[U(1330),'#1D0F26',6,26],[U(1390),'#04080F',8,40],[U(1745),'#04080F',8,40],[U(1800),'#1A110B',7,30],[U(2034),'#1A110B',7,30],[U(2060),'#000000',4,30],[U(2061),'#3D2B54',60,520],[1,'#3D2B54',60,520]];
+  function fogAt(p){for(let i=0;i<FOG.length-1;i++){if(p<=FOG[i+1][0]){const t=clamp((p-FOG[i][0])/(FOG[i+1][0]-FOG[i][0]));cA.set(FOG[i][1]);cB.set(FOG[i+1][1]);cA.lerp(cB,t);return[cA,FOG[i][2]+(FOG[i+1][2]-FOG[i][2])*t,FOG[i][3]+(FOG[i+1][3]-FOG[i][3])*t]}}return[cA.set(FOG[FOG.length-1][1]),60,520]}
+  const progress=$('#progress'),where=$('#where');
+  function frame(now){
+    const dt=Math.min(.05,(now-last)/1000);last=now;
+    p+=(pT-p)*(1-Math.exp(-dt*(reduce?12:4.2)));
+    mouse.sx+=(mouse.x-mouse.sx)*(1-Math.exp(-dt*4));mouse.sy+=(mouse.y-mouse.sy)*(1-Math.exp(-dt*4));
+    camPose(p,camera.position,look);look.x+=mouse.sx*.35;look.y+=mouse.sy*.22;
+    camera.lookAt(look);
+    const [fc,fn,ff]=fogAt(p);scene.fog.color.copy(fc);scene.background.copy(fc);scene.fog.near=fn;scene.fog.far=ff;
+    const gw=smooth(U(255),U(322.5),p)*(1-smooth(U(847.5),U(915),p));
+    world.lights.amb.intensity=.12+.22*gw;world.lights.hemi.intensity=.12+.28*gw;world.lights.key.intensity=.3+.25*gw;
+
+    if(built&&world.note){
+      const n=world.note,k1=smooth(U(18),U(93),p),k2=smooth(U(112.5),U(195),p),idle=reduce?0:Math.sin(now/1300)*.04;
+      n.rotation.y=k1*Math.PI+mouse.sx*.32*(1-k2)*(k1>.5?-1:1);
+      n.rotation.x=-mouse.sy*.22*(1-k2)-k2*.9;
+      n.rotation.z=(k1>0&&k1<1?Math.sin(k1*Math.PI)*-.08:0);
+      n.position.set(0,1.62+idle*(1-k2)+k2*4.4,-k2*2.4);
+      n.scale.setScalar(1-k2*.45);
+      world.holo.uniforms.uTime.value=now/1000;world.holo.uniforms.uTilt.value.set(mouse.sx,mouse.sy);
+      if(!stamped&&p>U(93)){stamped=true;world.setStamp();world.setStampTicket(world.note.children[0].material[5].map);snd.stamp();unlock('ticket')}
+      const t=now/1000;
+      world.techLeds[0].visible=Math.floor(t*1.1)%2===0;world.techLeds[1].visible=Math.floor(t*.8+.5)%2===0;
+      if(!reduce){world.rain.forEach((tx,i)=>{tx.offset.y=(t*(.05+i*.025))%1});world.plexus.position.y=Math.sin(t*.4)*.12}
+      if(!reduce){world.spin.forEach((o,i)=>{o.rotation.y=t*(.35+i*.1);o.position.y=1.7+Math.sin(t*1.3+i)*.05});if(world.cutter){world.cutter.rotation.x=t*1.4;world.cutter.position.y=Math.sin(t*1.2)*.25}
+        world.rings.forEach((r,i)=>{r.material.opacity=.3+.25*Math.sin(t*2+i)});
+        world.dust.forEach((d,i)=>{d.rotation.y=Math.sin(t*.05+i)*.02;d.position.y=Math.sin(t*.3+i)*.08});
+        world.ticket.rotation.z=Math.sin(t*.8)*.06;world.ticket.position.y=world.ticketY+Math.sin(t)*.06}
+      const fl=world.flow;for(let i=0;i<fl.n;i++){const c=fl.curves[i%fl.curves.length],q=((t*.12)+i/fl.n*4)%1,v=c.getPoint(q);fl.pos[i*3]=v.x;fl.pos[i*3+1]=v.y+.02;fl.pos[i*3+2]=v.z}fl.geo.attributes.position.needsUpdate=true;
+    }
+    // elevator and career tower
+    const inTower=p>SPLIT;
+    if(built&&world.tower){
+      world.tower.visible=inTower;
+      const o=smooth(U(2022),U(2048),p);world.doors[0].position.x=-.675-o*1.3;world.doors[1].position.x=.675+o*1.3;
+      if(inTower){world.cab.position.y=clamp(camera.position.y-1.7,0,60.1);world.beacon.visible=Math.floor(now/700)%2===0;const ts=now/1000;world.leds.forEach(l=>{l.m.visible=((ts*l.s+l.p)%1)<l.d});if(!reduce)world.globe.rotation.y=ts*.4}
+    }
+    fadeEl.style.opacity=(smooth(U(2034),U(2057),p)*(1-smooth(U(2066),U(2090),p))).toFixed(3);
+    floorInd.classList.toggle('on',inTower&&p<U(2358));
+    if(world.exhibits){world.exhibits.forEach(ex=>{const e=smooth(U(ex.stop-42),U(ex.stop-6),p)*(1-smooth(U(ex.stop+6),U(ex.stop+42),p));ex.parts.forEach(([m,b,d])=>{m.position.set(b.x+d.x*e,b.y+d.y*e,b.z+d.z*e)});ex.labels.forEach(l=>{l.material.opacity=e})});
+      if(p>U(1780)&&p<U(2040)){const ts=now/1000;if(!reduce){world.laser.position.x=Math.sin(ts*1.6)*.22;world.cutter2.rotation.y=ts*6}
+        const sc=world.scope,x=sc.x;x.fillStyle='#071A10';x.fillRect(0,0,256,160);x.strokeStyle='rgba(127,224,168,.18)';x.lineWidth=1;for(let i=0;i<=256;i+=32){x.beginPath();x.moveTo(i,0);x.lineTo(i,160);x.stroke()}for(let i=0;i<=160;i+=32){x.beginPath();x.moveTo(0,i);x.lineTo(256,i);x.stroke()}
+        x.strokeStyle='#7FE0A8';x.lineWidth=3;x.beginPath();for(let i=0;i<=256;i+=4){const yy=80+Math.sin(i*.07+ts*4)*34+Math.sin(i*.21+ts*2)*8;i?x.lineTo(i,yy):x.moveTo(i,yy)}x.stroke();sc.t.needsUpdate=true}}
+    if(inTower){const fl=Math.max(0,Math.round((camera.position.y-2)/3));floorNum.textContent=camera.position.y>58?'RF':fl===0?'L':String(fl).padStart(2,'0')}
+    {let near=-1;[2145,2195,2255,2315].forEach(s=>{if(Math.abs(p-U(s))<U(5))near=s});if(near!==lastDing){if(near>0)snd.ding();lastDing=near}}
+    // panels
+    panels.forEach(pn=>{const on=p>=pn.a&&p<pn.b;if(on!==pn.on){pn.on=on;pn.el.classList.toggle('on',on)}});
+    // zone
+    let z=0;ZONES.forEach((zz,i)=>{if(p>=zz.a)z=i});
+    if(z!==zone){zone=z;dotBtns.forEach((b,i)=>b.classList.toggle('on',i===z));where.textContent=T_(ZONES[z].name,ZONES[z].zh);curL.textContent=T_(ZONES[z].label,ZONES[z].lzh);cur.classList.toggle('tech',z===4);snd.setZone(z)}
+    // achievements
+    FR.forEach((fp,i)=>{if(Math.abs(p-U(fp))<U(18))visited.add(i)});if(visited.size===FR.length)unlock('critic');
+    if(Math.abs(p-U(1165))<U(20))unlock('commander');
+    [1520,1580,1640,1700].forEach((cp,i)=>{if(Math.abs(p-U(cp))<U(20))cases.add(i)});if(cases.size===4)unlock('engineer');
+    if(p>U(2365))unlock('top');
+    progress.style.transform=`scaleX(${p})`;
+    // cursor
+    cx+=(tx-cx)*(1-Math.exp(-dt*14));cy+=(ty-cy)*(1-Math.exp(-dt*14));cur.style.transform=`translate(${cx}px,${cy}px)`;
+    renderer.render(scene,camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}else{
+  $$('#ui .panel').forEach(el=>el.classList.add('on'));
+}
+}
+loadThree(['https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js','https://unpkg.com/three@0.128.0/build/three.min.js','https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'],museum);
+})();
+</script>
+</body>
+</html>
